@@ -1,0 +1,19 @@
+# Blacklist everything
+*.*
+!.gitignore
+
+# files
+!*.R
+!*.r
+!*.rmd
+!*.Rmd
+!*.md
+!*.sh
+!*.css
+
+# black list some folders again
+/figures
+/Meetings
+/Documentation
+**/*_cache
+.Rproj.user
