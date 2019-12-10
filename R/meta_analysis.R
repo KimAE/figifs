@@ -25,7 +25,7 @@ remove_low_count_cells <- function(dat, exposure, is_categorical, min_cell_size)
     return(dat)
   } else {
     drops <- data.frame(table(dat$outcome, dat$study_gxe)) %>%
-      filter(Freq == 0)
+      filter(Freq <= 5)
     dat <- filter(dat, !study_gxe %in% unique(drops$Var2))
     return(dat)
   }
