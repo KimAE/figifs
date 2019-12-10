@@ -16,7 +16,7 @@
 #' @return Data
 #' @export
 #'
-#' @examples remove_low_count_cells(data, is_categorical = TRUE)
+#' @examples remove_low_count_cells(data, exposure, is_categorical = TRUE)
 remove_low_count_cells <- function(dat, exposure, is_categorical) {
   if(is_categorical == T) {
     drops <- data.frame(table(dat$outcome, dat[,exposure], dat$study_gxe)) %>%
