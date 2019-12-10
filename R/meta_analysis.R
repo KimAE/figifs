@@ -16,7 +16,7 @@
 #' @return Data
 #' @export
 #'
-#' @examples remove_low_count_cells(data, exposure, is_categorical = TRUE)
+#' @examples remove_low_count_cells(dat, exposure, is_categorical = TRUE)
 remove_low_count_cells <- function(dat, exposure, is_categorical, min_cell_size) {
   if(is_categorical == T) {
     drops <- data.frame(table(dat$outcome, dat[,exposure], dat$study_gxe)) %>%
@@ -26,7 +26,7 @@ remove_low_count_cells <- function(dat, exposure, is_categorical, min_cell_size)
   } else {
     drops <- data.frame(table(dat$outcome, dat$study_gxe)) %>%
       filter(Freq == 0)
-    dat <- filter(dat, !study_gxe %in% unique(drops$Var3))
+    dat <- filter(dat, !study_gxe %in% unique(drops$Var2))
     return(dat)
   }
 }
