@@ -7,18 +7,19 @@
 
 #' remove_low_count_cells
 #'
-#' With data subsets, cell counts of outcome, exposure, and study_gxe can become low and cause regression errors. If exposure is categorical, 3-way tabulate exposure/outcome/study_gxe, remove studies with cell counts <= 10. If numeric, 2-way tabulate outcome/study_gxe, remove studies with cell counts == 0.
+#' With data subsets, cell counts of outcome, exposure, and study_gxe can become low and cause regression errors. If exposure is categorical, 3-way tabulate exposure/outcome/study_gxe, remove studies with cell counts <= 10. If numeric, 2-way tabulate outcome/study_gxe, remove studies with cell counts == 0. NOTE THAT OUTCOME AND STUDY_GXE ARE HARDCODED.
 #'
 #' @param dat Input data
+#' @param exposure Exposure variable (only used if categorical)
 #' @param is_categorical Logical, categorical TRUE or FALSE
 #'
 #' @return Data
 #' @export
 #'
 #' @examples remove_low_count_cells(data, is_categorical = TRUE)
-remove_low_count_cells <- function(dat, is_categorical) {
+remove_low_count_cells <- function(dat, exposure, is_categorical) {
   if(is_categorical == T) {
-    drops <- data.frame(table(dat$outcome, dat[,params$exposure], dat$study_gxe)) %>%
+    drops <- data.frame(table(dat$outcome, dat[,exposure], dat$study_gxe)) %>%
       filter(Freq <= 10)
     dat <- filter(dat, !study_gxe %in% unique(drops$Var3))
     return(dat)
