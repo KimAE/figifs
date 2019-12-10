@@ -7,21 +7,21 @@
 get_estimates_e_by_group(dat, outcome, exposure, group, ...)
 }
 \arguments{
+\item{dat}{Input data}
+
 \item{outcome}{Outcome variable}
 
 \item{exposure}{Exposure variable}
 
-\item{group}{Group variable (typically study_g)}
+\item{group}{Group variable e.g. study_gxe}
 
-\item{...}{Adjustment Covariates}
-
-\item{df}{Input data}
+\item{...}{Adjustment covariates}
 }
 \value{
 Tibble with exposure GLM estimates/se/stats/pval/95%CI by group
 }
 \description{
-Function to get GLM estimates by group (e.g. study_gxe). Make sure to use clean covariate data generated prior to running GxEScanR. Data should be complete case in respect to exposure and basic covariates, should not include case only studies or studies with zero outcome cells.
+Fit regression for exposure main effect by group. Input data should not include studies with zero counts when tabulating exposure/outcome/study.
 }
 \examples{
 run_glm_e_by_group(gxe, outcome, asp_ref, study_gxe, age_ref_imp, sex, PC1, PC2, PC3)

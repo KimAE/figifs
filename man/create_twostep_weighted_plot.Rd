@@ -4,8 +4,16 @@
 \alias{create_twostep_weighted_plot}
 \title{create_twostep_weighted_plot}
 \usage{
-create_twostep_weighted_plot(dat, exposure, covars, sizeBin0, alpha,
-  binsToPlot, statistic, filename_suffix = "")
+create_twostep_weighted_plot(
+  dat,
+  exposure,
+  covars,
+  sizeBin0,
+  alpha,
+  binsToPlot,
+  statistic,
+  filename_suffix = ""
+)
 }
 \arguments{
 \item{dat}{Input data}

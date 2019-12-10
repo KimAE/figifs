@@ -4,8 +4,16 @@
 \alias{create_twostep_weighted_plot_expectation}
 \title{create_twostep_weighted_plot_expectation}
 \usage{
-create_twostep_weighted_plot_expectation(dat, exposure, covars, sizeBin0,
-  alpha, binsToPlot, statistic, filename_suffix = "")
+create_twostep_weighted_plot_expectation(
+  dat,
+  exposure,
+  covars,
+  sizeBin0,
+  alpha,
+  binsToPlot,
+  statistic,
+  filename_suffix = ""
+)
 }
 \arguments{
 \item{dat}{Input data}

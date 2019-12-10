@@ -4,8 +4,15 @@
 \alias{create_manhattanplot}
 \title{create_manhattanplot}
 \usage{
-create_manhattanplot(dat, exposure, covars, stat, df, annotation_file,
-  filename_suffix = "")
+create_manhattanplot(
+  dat,
+  exposure,
+  covars,
+  stat,
+  df,
+  annotation_file,
+  filename_suffix = ""
+)
 }
 \arguments{
 \item{dat}{Input data}

@@ -7,19 +7,17 @@
 get_counts_outcome_by_group(dat, outcome, group)
 }
 \arguments{
+\item{dat}{Input data}
+
 \item{outcome}{Outcome variable}
 
-\item{group}{Group variable (typically study_g)}
-
-\item{df}{Input data}
-
-\item{exposure}{Exposure variable}
+\item{group}{Group variable e.g. study_gxe}
 }
 \value{
-Tibble with group counts (case/control)
+Tibble with case/control counts by group.
 }
 \description{
-Function to tabulate outcome variable counts by study/platform. Make sure to use clean covariate data generated prior to running GxEScanR. Data should be complete case in respect to exposure and basic covariates, should not include case only studies or studies with zero outcome cells.
+Tabulate outcome by study/platform to inclusion in forest plots. Input data should not include studies with zero counts when tabulating exposure/outcome/study.
 }
 \examples{
 get_counts_by_outcome(gxe, outcome, aspirin, study_gxe)
