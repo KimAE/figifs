@@ -23,7 +23,7 @@
 #' @return Cleaned dataset
 #' @export
 #'
-#' @examples format_data_gxescan(figi_gwas, 'asp_ref', T, 0)
+#' @examples format_data_glm(figi_gwas, 'asp_ref', T, 0)
 format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
 
   tmp <- d %>%
@@ -63,7 +63,7 @@ format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
 #' @return Phenotype file for GxEScanR
 #' @export
 #'
-#' @examples format_data_gxescan(asp_ref_glm)
+#' @examples format_data_gxescan(asp_ref_glm, 'asp_ref')
 format_data_gxescan <- function(d, exposure) {
 
   tmp <- d
