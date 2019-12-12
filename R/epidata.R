@@ -35,15 +35,25 @@ format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
   if (is_e_categorical == T) {
     drops <- data.frame(table(tmp$outcome, tmp[, exposure], tmp$study_gxe)) %>%
       filter(Freq <= min_cell_size)
-    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3))
-    return(tmp)
+    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
+      dplyr::mutate(study_gxe = fct_drop(study_gxe),
+                    outcome = factor(outcome, labels = seq(from = 0, length(levels(outcome)) - 1)),
+                    sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)),
+                    {{exposure}} := factor(get(exposure), labels = seq(from = 0, length(levels(get(exposure))) - 1)))
+
+    # return(tmp)
   }
   else {
     drops <- data.frame(table(tmp$outcome, tmp$study_gxe)) %>%
       filter(Freq <= min_cell_size)
-    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var2))
-    return(tmp)
+    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
+      dplyr::mutate(study_gxe = fct_drop(study_gxe),
+                    outcome = factor(outcome, labels = seq(from = 0, length(levels(outcome)) - 1)),
+                    sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)))
+    # return(tmp)
   }
+
+  return(tmp)
 
 }
 
@@ -57,6 +67,8 @@ format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
 #' Create study indicator variables. Set reference study to avoid any issues with gxescanR (just in case). Study subsets vary according to exposure, set the first study in the list as reference
 #'
 #' Set the interaction exposure as the last variable in the phenotype file
+#'
+#' Make sure all factors are numeric
 #'
 #' @param d Output data from the format_data_glm function.
 #'
