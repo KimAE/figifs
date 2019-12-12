@@ -35,15 +35,25 @@ format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
   if (is_e_categorical == T) {
     drops <- data.frame(table(tmp$outcome, tmp[, exposure], tmp$study_gxe)) %>%
       filter(Freq <= min_cell_size)
-    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3))
-    return(tmp)
+    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
+      dplyr::mutate(study_gxe = fct_drop(study_gxe),
+                    outcome = factor(outcome, labels = seq(from = 0, length(levels(outcome)) - 1)),
+                    sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)),
+                    {{exposure}} := factor(get(exposure), labels = seq(from = 0, length(levels(get(exposure))) - 1)))
+
+    # return(tmp)
   }
   else {
     drops <- data.frame(table(tmp$outcome, tmp$study_gxe)) %>%
       filter(Freq <= min_cell_size)
-    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var2))
-    return(tmp)
+    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
+      dplyr::mutate(study_gxe = fct_drop(study_gxe),
+                    outcome = factor(outcome, labels = seq(from = 0, length(levels(outcome)) - 1)),
+                    sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)))
+    # return(tmp)
   }
+
+  return(tmp)
 
 }
 
@@ -58,6 +68,8 @@ format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
 #'
 #' Set the interaction exposure as the last variable in the phenotype file
 #'
+#' Make sure all factors are numeric
+#'
 #' @param d Output data from the format_data_glm function.
 #'
 #' @return Phenotype file for GxEScanR
@@ -67,12 +79,13 @@ format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
 format_data_gxescan <- function(d, exposure) {
 
   tmp <- d
-  ref_study <- unique(d[, 'study_gxe'])[1]
+  ref_study <- as.character(unique(d[, 'study_gxe'])[1])
 
   for(t in unique(tmp$study_gxe)) {
     tmp[paste0(t)] <- ifelse(tmp$study_gxe==t,1,0)
   }
 
+  # # tmp <- dplyr::select(tmp, -ref_study, -study_gxe, -exposure, exposure)
   tmp <- dplyr::select(tmp, -ref_study, -study_gxe, -exposure, exposure)
 
 }

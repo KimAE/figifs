@@ -15,5 +15,6 @@
 /figures
 /Meetings
 /Documentation
+/old
 **/*_cache
 .Rproj.user
