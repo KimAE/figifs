@@ -135,7 +135,7 @@ format_data_gxescan <- function(d, exposure) {
   }
 
   # # tmp <- dplyr::select(tmp, -ref_study, -study_gxe, -exposure, exposure)
-  if(length(levels(sex)) == 1) {
+  if(length(unique(d$sex)) == 1) {
     tmp <- dplyr::select(tmp, -ref_study, -sex, -study_gxe, -exposure, exposure)
   } else {
     tmp <- dplyr::select(tmp, -ref_study, -study_gxe, -exposure, exposure)
