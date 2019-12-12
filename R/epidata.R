@@ -2,166 +2,63 @@
 # Convenience scripts to clean up epidata for gxescan / glm etc
 #=============================================================================#
 
-
-
 #' format_data_glm
 #'
 #' @description
 #' Format data for analysis.
+#'
 #' Performs the following steps:
 #' * subset gxe == 1
-#' * drop unused outcome factor level
-#' * selects vcfid, outcome, exposure, and basic covariates (edit as needed)
-#' * drops samples with missing information
-#' * removes case only / control only studies. Can also drop studies with low cells sizes.
+#' * subset !is.na(exposure)
+#' * change outcome and sex into numeric variables
+#' * only keep variables necessary for scans
+#' * removes case only / control only studies. Alternatively, drop studies with low cells counts
 #'
-#' @param d Input data - 'master' set I create
+#' Note that all main adjustment variables do not have missing values. Sufficient to subset by exposure to create phenotype file
+#'
+#' @param d Input data (FIGI_EpiData02_master.R)
 #' @param exposure Exposure variable for GxEScanR
-#' @param is_e_categorical Is exposure categorical T/F
-#' @param min_cell_size Minimum cell size for study removal - tabulation of outcome, exposure, study if categorical. if numeric, tabulation of outcome and study
+#' @param is_e_categorical Is exposure categorical - T/F
+#' @param min_cell_size Minimum cell size for study removal. Tabulate outcome+exposure+study for categorical variable, tabulate outcome+study for continuous variable
+#' @param vars_to_exclude Vector of variables to remove from dataset. Useful for stratified analyses e.g. females only
 #'
 #' @return Cleaned dataset
 #' @export
 #'
-#' @examples format_data_glm(figi_gwas, 'asp_ref', T, 0)
-format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
+#' @examples format_data_glm(figi_gwas, 'asp_ref', T, 0, c("energytot"))
+format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0, vars_to_exclude = c('energytot_imp')) {
 
+  vars_to_keep <- c("vcfid", "outcome", exposure, "age_ref_imp", "sex", "energytot_imp", "study_gxe", "PC1", "PC2", "PC3")
+  vars_to_keep <- vars_to_keep[!vars_to_keep %in% vars_to_exclude]
+
+  # note that in gxe set, outcome+age_ref_imp+sex+study_gxe+energytot_imp do NOT have missing values
+  # OK to subset simply by using is.na(exposure)
   tmp <- d %>%
-    dplyr::filter(gxe == 1) %>%
-    dplyr::mutate(outcome = fct_drop(outcome)) %>%
-    dplyr::select(vcfid, outcome, exposure, age_ref_imp, sex, study_gxe, paste0(rep("PC", 3), seq(1,3))) %>%
-    filter(complete.cases(.))
+    dplyr::filter(gxe == 1,
+                  !is.na(get(exposure))) %>%
+    dplyr::mutate(outcome = ifelse(outcome == "Control", 0, 1),
+                  sex = ifelse(sex == "Female", 0, 1))
 
-  # note - you need to be very careful with factor order when relabeling levels
-
+  # drop zero cells, keep vars_to_keep
   if (is_e_categorical == T) {
+    tmp <- mutate(tmp, {{exposure}} := as.numeric(get(exposure)) - 1)
+
     drops <- data.frame(table(tmp$outcome, tmp[, exposure], tmp$study_gxe)) %>%
       filter(Freq <= min_cell_size)
-    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
-      dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = c(1,0)),
-                    sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)),
-                    {{exposure}} := factor(get(exposure), labels = seq(from = 0, length(levels(get(exposure))) - 1)))
 
-    # return(tmp)
-  }
+    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
+      dplyr::mutate(study_gxe = fct_drop(study_gxe)) %>%
+      dplyr::select(vars_to_keep)  }
   else {
     drops <- data.frame(table(tmp$outcome, tmp$study_gxe)) %>%
       filter(Freq <= min_cell_size)
-    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
-      dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = c(1,0)),
-                    sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)))
-    # return(tmp)
-  }
+    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var2)) %>%
+      dplyr::mutate(study_gxe = fct_drop(study_gxe)) %>%
+      dplyr::select(vars_to_keep)  }
 
   return(tmp)
 
 }
-
-
-
-
-#' format_data_glm_nosex
-#'
-#' @description
-#' Same function as format_data_glm, but no sex recoding. Meant to be used for HRT or other sex specific analyses..
-#' Incidentally - will need an entire set of functions for stratified analyses.
-#'
-#' @param d Input data - 'master' set I create
-#' @param exposure Exposure variable for GxEScanR
-#' @param is_e_categorical Is exposure categorical T/F
-#' @param min_cell_size Minimum cell size for study removal - tabulation of outcome, exposure, study if categorical. if numeric, tabulation of outcome and study
-#'
-#' @return Cleaned dataset
-#' @export
-#'
-#' @examples format_data_glm_nosex(figi_gwas, 'asp_ref', T, 0)
-format_data_glm_nosex <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
-
-  tmp <- d %>%
-    dplyr::filter(gxe == 1) %>%
-    dplyr::mutate(outcome = fct_drop(outcome)) %>%
-    dplyr::select(vcfid, outcome, exposure, age_ref_imp, sex, study_gxe, paste0(rep("PC", 3), seq(1,3))) %>%
-    filter(complete.cases(.))
-
-  if (is_e_categorical == T) {
-    drops <- data.frame(table(tmp$outcome, tmp[, exposure], tmp$study_gxe)) %>%
-      filter(Freq <= min_cell_size)
-    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
-      dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = c(1,0)),
-                    {{exposure}} := factor(get(exposure), labels = seq(from = 0, length(levels(get(exposure))) - 1)))
-
-    # return(tmp)
-  }
-  else {
-    drops <- data.frame(table(tmp$outcome, tmp$study_gxe)) %>%
-      filter(Freq <= min_cell_size)
-    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
-      dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = c(1,0)))
-    # return(tmp)
-  }
-
-  return(tmp)
-
-}
-
-
-
-
-#' format_data_glm_energy
-#'
-#' @description
-#' Same as format_data_glm, but adding energytot as part of the dataset
-#'
-#' using energytot_imp
-#'
-#' @param d Input data - 'master' set I create
-#' @param exposure Exposure variable for GxEScanR
-#' @param is_e_categorical Is exposure categorical T/F
-#' @param min_cell_size Minimum cell size for study removal - tabulation of outcome, exposure, study if categorical. if numeric, tabulation of outcome and study
-#'
-#' @return Cleaned dataset
-#' @export
-#'
-#' @examples format_data_glm_energy(figi_gwas, 'asp_ref', T, 0)
-format_data_glm_energy <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
-
-  tmp <- d %>%
-    dplyr::filter(gxe == 1) %>%
-    dplyr::mutate(outcome = fct_drop(outcome)) %>%
-    dplyr::select(vcfid, outcome, exposure, age_ref_imp, sex, energytot_imp, study_gxe, paste0(rep("PC", 3), seq(1,3))) %>%
-    filter(complete.cases(.))
-
-  if (is_e_categorical == T) {
-    drops <- data.frame(table(tmp$outcome, tmp[, exposure], tmp$study_gxe)) %>%
-      filter(Freq <= min_cell_size)
-    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
-      dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = c(1,0)),
-                    sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)),
-                    {{exposure}} := factor(get(exposure), labels = seq(from = 0, length(levels(get(exposure))) - 1)))
-
-    # return(tmp)
-  }
-  else {
-    drops <- data.frame(table(tmp$outcome, tmp$study_gxe)) %>%
-      filter(Freq <= min_cell_size)
-    tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
-      dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = c(1,0)),
-                    sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)))
-    # return(tmp)
-  }
-
-  return(tmp)
-
-}
-
-
-
 
 
 #' format_data_gxescan
@@ -174,11 +71,12 @@ format_data_glm_energy <- function(d, exposure, is_e_categorical, min_cell_size 
 #' Make sure all factors are numeric
 #'
 #' @param d Output data from the format_data_glm function.
+#' @param exposure Exposure variable for GxEScanR
 #'
 #' @return Phenotype file for GxEScanR
 #' @export
 #'
-#' @examples format_data_gxescan(asp_ref_glm, 'asp_ref')
+#' @examples format_data_gxescan(gxe, 'asp_ref')
 format_data_gxescan <- function(d, exposure) {
 
   tmp <- d
@@ -189,10 +87,6 @@ format_data_gxescan <- function(d, exposure) {
   }
 
   # # tmp <- dplyr::select(tmp, -ref_study, -study_gxe, -exposure, exposure)
-  if(length(unique(d$sex)) == 1) {
-    tmp <- dplyr::select(tmp, -ref_study, -sex, -study_gxe, -exposure, exposure)
-  } else {
-    tmp <- dplyr::select(tmp, -ref_study, -study_gxe, -exposure, exposure)
-  }
+  tmp <- dplyr::select(tmp, -ref_study, -study_gxe, -exposure, exposure)
 
 }
