@@ -90,7 +90,7 @@ format_data_glm_nosex <- function(d, exposure, is_e_categorical, min_cell_size =
       filter(Freq <= min_cell_size)
     tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
       dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = seq(from = 0, length(levels(outcome)) - 1)),
+                    outcome = factor(outcome, labels = c(1,0)),
                     {{exposure}} := factor(get(exposure), labels = seq(from = 0, length(levels(get(exposure))) - 1)))
 
     # return(tmp)
@@ -100,7 +100,7 @@ format_data_glm_nosex <- function(d, exposure, is_e_categorical, min_cell_size =
       filter(Freq <= min_cell_size)
     tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
       dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = seq(from = 0, length(levels(outcome)) - 1)))
+                    outcome = factor(outcome, labels = c(1,0)))
     # return(tmp)
   }
 
@@ -140,7 +140,7 @@ format_data_glm_energy <- function(d, exposure, is_e_categorical, min_cell_size 
       filter(Freq <= min_cell_size)
     tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
       dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = seq(from = 0, length(levels(outcome)) - 1)),
+                    outcome = factor(outcome, labels = c(1,0)),
                     sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)),
                     {{exposure}} := factor(get(exposure), labels = seq(from = 0, length(levels(get(exposure))) - 1)))
 
@@ -151,7 +151,7 @@ format_data_glm_energy <- function(d, exposure, is_e_categorical, min_cell_size 
       filter(Freq <= min_cell_size)
     tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
       dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = seq(from = 0, length(levels(outcome)) - 1)),
+                    outcome = factor(outcome, labels = c(1,0)),
                     sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)))
     # return(tmp)
   }
