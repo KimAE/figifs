@@ -32,12 +32,14 @@ format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
     dplyr::select(vcfid, outcome, exposure, age_ref_imp, sex, study_gxe, paste0(rep("PC", 3), seq(1,3))) %>%
     filter(complete.cases(.))
 
+  # note - you need to be very careful with factor order when relabeling levels
+
   if (is_e_categorical == T) {
     drops <- data.frame(table(tmp$outcome, tmp[, exposure], tmp$study_gxe)) %>%
       filter(Freq <= min_cell_size)
     tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
       dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = seq(from = 0, length(levels(outcome)) - 1)),
+                    outcome = factor(outcome, labels = c(1,0)),
                     sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)),
                     {{exposure}} := factor(get(exposure), labels = seq(from = 0, length(levels(get(exposure))) - 1)))
 
@@ -48,7 +50,7 @@ format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0) {
       filter(Freq <= min_cell_size)
     tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
       dplyr::mutate(study_gxe = fct_drop(study_gxe),
-                    outcome = factor(outcome, labels = seq(from = 0, length(levels(outcome)) - 1)),
+                    outcome = factor(outcome, labels = c(1,0)),
                     sex = factor(sex, labels = seq(from = 0, length(levels(sex)) - 1)))
     # return(tmp)
   }
