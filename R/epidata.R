@@ -26,18 +26,27 @@
 #' @export
 #'
 #' @examples format_data_glm(figi_gwas, 'asp_ref', T, 0, c("energytot"))
-format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0, vars_to_exclude = c('energytot_imp')) {
+format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0, vars_to_exclude = c('energytot_imp'), eur_only=T) {
 
   vars_to_keep <- c("vcfid", "outcome", exposure, "age_ref_imp", "sex", "energytot_imp", "study_gxe", "PC1", "PC2", "PC3")
   vars_to_keep <- vars_to_keep[!vars_to_keep %in% vars_to_exclude]
 
   # note that in gxe set, outcome+age_ref_imp+sex+study_gxe+energytot_imp do NOT have missing values
   # OK to subset simply by using is.na(exposure)
-  tmp <- d %>%
-    dplyr::filter(gxe == 1,
-                  !is.na(get(exposure))) %>%
-    dplyr::mutate(outcome = ifelse(outcome == "Control", 0, 1),
-                  sex = ifelse(sex == "Female", 0, 1))
+  if(eur_only == T) {
+    tmp <- d %>%
+      dplyr::filter(gxe == 1,
+                    EUR == 1,
+                    !is.na(get(exposure))) %>%
+      dplyr::mutate(outcome = ifelse(outcome == "Control", 0, 1),
+                    sex = ifelse(sex == "Female", 0, 1))
+  } else {
+    tmp <- d %>%
+      dplyr::filter(gxe == 1,
+                    !is.na(get(exposure))) %>%
+      dplyr::mutate(outcome = ifelse(outcome == "Control", 0, 1),
+                    sex = ifelse(sex == "Female", 0, 1))
+  }
 
   # drop zero cells, keep vars_to_keep
   if (is_e_categorical == T) {
