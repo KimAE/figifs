@@ -134,7 +134,7 @@ meta_analysis_wrapper <- function(dat, forest_plot_title, filename_suffix, fores
                study.results=T,
                prediction = F,
                col.random = 'red')
-  grid.text(forest_plot_title, 0.5, .98, gp=gpar(cex=2))
+  grid.text(forest_plot_title, 0.5, .98, gp=gpar(cex=1))
   dev.off()
 
   png(paste0("/media/work/tmp_images/funnel_plot_", params$exposure,  "_", filename_suffix, ".png"), height = funnel_height, width = funnel_width, units = 'in', res = 150)
