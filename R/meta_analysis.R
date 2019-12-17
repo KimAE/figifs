@@ -87,7 +87,7 @@ get_estimates_e_by_group <- function(dat, outcome, exposure, group, ...) {
 
   results <- dplyr::bind_cols(results_beta, results_ci) %>%
     dplyr::ungroup() %>%
-    dplyr::filter(term == exposure)
+    dplyr::filter(grepl(exposure, term))
   return(results)
 
 }
