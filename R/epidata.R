@@ -21,14 +21,15 @@
 #' @param is_e_categorical Is exposure categorical - T/F
 #' @param min_cell_size Minimum cell size for study removal. Tabulate outcome+exposure+study for categorical variable, tabulate outcome+study for continuous variable
 #' @param vars_to_exclude Vector of variables to remove from dataset. Useful for stratified analyses e.g. females only
+#' @param vars_to_include In case you need to add additional variables to the scan
 #'
 #' @return Cleaned dataset
 #' @export
 #'
 #' @examples format_data_glm(figi_gwas, 'asp_ref', T, 0, c("energytot"))
-format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0, vars_to_exclude = c('energytot_imp'), eur_only=T) {
+format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0, vars_to_exclude = c('energytot_imp'), vars_to_include = c(), eur_only=T) {
 
-  vars_to_keep <- c("vcfid", "outcome", exposure, "age_ref_imp", "sex", "energytot_imp", "study_gxe", "PC1", "PC2", "PC3")
+  vars_to_keep <- c("vcfid", "outcome", exposure, "age_ref_imp", "sex", "energytot_imp", "study_gxe", "PC1", "PC2", "PC3", vars_to_include)
   vars_to_keep <- vars_to_keep[!vars_to_keep %in% vars_to_exclude]
 
   # note that in gxe set, outcome+age_ref_imp+sex+study_gxe+energytot_imp do NOT have missing values
