@@ -48,7 +48,7 @@ write_plot_title <- function(stat, exposure, covars, N) {
 
 #' create_qqplot
 #'
-#' Function creates a QQ plot and outputs *.png file (default location is a './figures' folder).
+#' Function creates a QQ plot and outputs *.png file (default location is a './plot' folder).
 #'
 #' @param dat Input data
 #' @param exposure Exposure variable
@@ -56,7 +56,7 @@ write_plot_title <- function(stat, exposure, covars, N) {
 #' @param df Degrees of Freedom
 #' @param filename_suffix For convenience when you're creating test plots
 #'
-#' @return Writes a .png file into location ./figures/
+#' @return Writes a .png file into location ~/Dropbox/FIGI/Results/exposure/plot/
 #' @export
 #'
 #' @examples create_qqplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")
@@ -75,7 +75,7 @@ create_qqplot <- function(dat, exposure, covars, stat, df, filename_suffix = "")
   lambda1000 <- 1 + (lambda - 1) * ( (1/cases + 1/controls) / (1/(2*cases1000) + 1/(2*controls1000)))
 
   # plotting function
-  png(paste0("figures/qq_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/qq_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
   qqman::qq(pvals,
             xlab = "Expected -log10(p)",
             ylab = "Observed -log10(p)",
@@ -96,7 +96,7 @@ create_qqplot <- function(dat, exposure, covars, stat, df, filename_suffix = "")
 
 #' create_qqplot_ge
 #'
-#' Function creates a QQ plot and outputs *.png file (default location is a './figures' folder). Using a separate function for GE, GE among Controls, and GE among Cases (Case-only analysis) for convenience
+#' Function creates a QQ plot and outputs *.png file (default location is a './plots' folder). Using a separate function for GE, GE among Controls, and GE among Cases (Case-only analysis) for convenience
 #'
 #' @param dat Input data
 #' @param exposure Exposure variable
@@ -104,7 +104,7 @@ create_qqplot <- function(dat, exposure, covars, stat, df, filename_suffix = "")
 #' @param df Degrees of Freedom
 #' @param filename_suffix For convenience when you're creating test plots
 #'
-#' @return Writes a .png file into location ./figures/
+#' @return Writes a .png file into location ~/Dropbox/FIGI/Results/exposure/plots/
 #' @export
 #'
 #' @examples create_qqplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")
@@ -141,7 +141,7 @@ create_qqplot_ge <- function(dat, exposure, covars, stat, df, filename_suffix = 
     }
 
    # plotting function
-  png(paste0("figures/qq_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/qq_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
   qqman::qq(pvals,
             xlab = "Expected -log10(p)",
             ylab = "Observed -log10(p)",
@@ -174,7 +174,7 @@ create_qqplot_ge <- function(dat, exposure, covars, stat, df, filename_suffix = 
 #' @param annotation_file File to be used for annotation. Should located in /media/work/tmp
 #' @param filename_suffix For convenience when you're creating test plots
 #'
-#' @return Writes a .png file into location ./figures/
+#' @return Writes a .png file into location ~/Dropbox/FIGI/Results/exposure/plots/
 #' @export
 #'
 #' @examples create_manhattanplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")
@@ -211,12 +211,12 @@ create_manhattanplot <- function(dat, exposure, covars, stat, df, annotation_fil
   write.table(dat, file = paste0("/media/work/tmp/manhattan_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix), quote = F, row.names = F, sep = '\t')
 
   # create ecf file
-  ecf1 <- paste0(getwd(), "/figures")
+  ecf1 <- paste0("~/Dropbox/FIGI/Results/", exposure, "/plots")
   ecf2 <- "ID;CHR;BP;P"
   ecf3 <- "character;numeric;numeric;numeric"
   #ecf4 <- paste0("/media/work/tmp/EasyStrata_", exposure, "_", stat, "_", paste0(covars, collapse = "_"), "_N_", total, filename_suffix, ".txt")
   ecf4 <- paste0("/media/work/tmp/manhattan_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix)
-  ecf_file_name <- paste0("files/EasyStrata_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".ecf")
+  ecf_file_name <- paste0("~/Dropbox/FIGI/Results/", exposure, "/files/EasyStrata_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".ecf")
 
   cat(paste0("DEFINE	--pathOut ", ecf1, "
       --acolIn ", ecf2, "
@@ -417,10 +417,7 @@ create_twostep_weighted_plot <- function(dat, exposure, covars, sizeBin0, alpha,
   # CREATE PLOT
   head(glist[[1]]) # for reference
 
-  # png(paste0("figures/twostep_wht_", deparse(substitute(dat)), "_", statistic, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
-  png(paste0("figures/twostep_wht_", statistic, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
-  # png(write_weighted_plot_filename(deparse(substitute(dat)), statistic), width = 1280, height = 720)
-  # color <- rep(c("blue","olivedrab4"),100)
+  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
   color <- rep(c("grey70","grey80"),100)
   plot(glist[[1]][,x], glist[[1]][,y],
        col = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 'darkred','grey70'),
@@ -592,8 +589,7 @@ create_twostep_weighted_plot_expectation <- function(dat, exposure, covars, size
   # CREATE PLOT
   head(glist[[1]]) # for reference
 
-  png(paste0("figures/twostep_wht_", statistic, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
-  # png(paste0("~/Dropbox/twostep_wht_", statistic, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
 
   color <- rep(c("grey70","grey80"),100)
 
