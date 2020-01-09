@@ -58,13 +58,15 @@ format_data_glm <- function(d, exposure, is_e_categorical, min_cell_size = 0, va
 
     tmp <- filter(tmp, !study_gxe %in% unique(drops$Var3)) %>%
       dplyr::mutate(study_gxe = fct_drop(study_gxe)) %>%
-      dplyr::select(vars_to_keep)  }
+      dplyr::select(vars_to_keep) %>%
+      filter(complete.cases(.))}
   else {
     drops <- data.frame(table(tmp$outcome, tmp$study_gxe)) %>%
       filter(Freq <= min_cell_size)
     tmp <- filter(tmp, !study_gxe %in% unique(drops$Var2)) %>%
       dplyr::mutate(study_gxe = fct_drop(study_gxe)) %>%
-      dplyr::select(vars_to_keep)  }
+      dplyr::select(vars_to_keep) %>%
+      filter(complete.cases(.))}
 
   return(tmp)
 
