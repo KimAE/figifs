@@ -205,14 +205,14 @@ create_manhattanplot <- function(dat, exposure, covars, stat, df, annotation_fil
     filter(!(P > 0.05)) %>%
     dplyr::rename(CHR = Chromosome,
                   BP = Location) %>%
-    dplyr::select(ID, CHR, BP, P)
+    dplyr::select(SNP, CHR, BP, P)
 
   #write.table(dat, file = paste0("/media/work/tmp/manhattan_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".txt"), quote = F, row.names = F, sep = '\t')
   write.table(dat, file = paste0("/media/work/tmp/manhattan_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix), quote = F, row.names = F, sep = '\t')
 
   # create ecf file
   ecf1 <- paste0("~/Dropbox/FIGI/Results/", exposure, "/plots")
-  ecf2 <- "ID;CHR;BP;P"
+  ecf2 <- "SNP;CHR;BP;P"
   ecf3 <- "character;numeric;numeric;numeric"
   #ecf4 <- paste0("/media/work/tmp/EasyStrata_", exposure, "_", stat, "_", paste0(covars, collapse = "_"), "_N_", total, filename_suffix, ".txt")
   ecf4 <- paste0("/media/work/tmp/manhattan_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix)
