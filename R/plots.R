@@ -146,15 +146,15 @@ create_qqplot_ge <- function(dat, exposure, covars, stat, df, filename_suffix = 
             xlab = "Expected -log10(p)",
             ylab = "Observed -log10(p)",
             main = write_plot_title(stat, exposure, covars, total),
-            cex.main = 1.6,
-            cex.axis = 1.3,
-            cex.lab = 1.3,
-            cex.sub = 1.3,
+            cex.main = 1.7,
+            cex.axis = 1.7,
+            cex.lab = 1.7,
+            cex.sub = 1.7,
             cex = 1.4,
             pch = 1,
             col = 'blue4')
   par(adj = 1)
-  title(sub = bquote(lambda ~ '=' ~ .(signif(lambda, 4))), cex.sub = 1.3) # FYI ~~ adds spaces when using signif
+  title(sub = bquote(lambda ~ '=' ~ .(signif(lambda, 4))), cex.sub = 1.7) # FYI ~~ adds spaces when using signif
   dev.off()
 }
 
@@ -180,41 +180,23 @@ create_qqplot_ge <- function(dat, exposure, covars, stat, df, filename_suffix = 
 #' @examples create_manhattanplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")
 create_manhattanplot <- function(dat, exposure, covars, stat, df, annotation_file, filename_suffix = "") {
 
-  # get case/control/total counts (if file structure changes... bad)
   cases <- unique(dat[, 'Cases'])
   controls <- unique(dat[, 'Subjects']) - unique(dat[, 'Cases'])
   total <- cases + controls
 
-  # annotation
-  # (only used to make sure plot retains markers p > 0.05 but in LD with gwas hit)
-  # (EDIT: simply filter out markers p > 0.05. It's not as if genome-wide manhattan plots are formative enough to scrutinize specific loci)
-  # fh_annotations <- fread("~/data/Annotations/crc_gwas_indep_signals_140_EasyStrata_LDBased.tsv") %>%
-  #   mutate(SNP = paste(Chr, Pos, sep = ":"))
-
-  # format data for EasyStrata package, output to file
-  # dat <- dat %>%
-  #   mutate(P = calculate_pval(dat[,stat], df),
-  #          annot = ifelse(SNP %in% fh_annotations$SNP, 1, 0)) %>%
-  #   filter(!(P > 0.05 & annot == 0)) %>%
-  #   dplyr::rename(CHR = Chromosome,
-  #                 BP = Location) %>%
-  #   dplyr::select(ID, CHR, BP, P)
-
   dat <- dat %>%
     mutate(P = calculate_pval(dat[,stat], df)) %>%
-    filter(!(P > 0.05)) %>%
+    filter(!(P > 0.01)) %>%
     dplyr::rename(CHR = Chromosome,
                   BP = Location) %>%
     dplyr::select(SNP, CHR, BP, P)
 
-  #write.table(dat, file = paste0("/media/work/tmp/manhattan_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".txt"), quote = F, row.names = F, sep = '\t')
   write.table(dat, file = paste0("/media/work/tmp/manhattan_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix), quote = F, row.names = F, sep = '\t')
 
   # create ecf file
   ecf1 <- paste0("~/Dropbox/FIGI/Results/", exposure, "/plots")
   ecf2 <- "SNP;CHR;BP;P"
   ecf3 <- "character;numeric;numeric;numeric"
-  #ecf4 <- paste0("/media/work/tmp/EasyStrata_", exposure, "_", stat, "_", paste0(covars, collapse = "_"), "_N_", total, filename_suffix, ".txt")
   ecf4 <- paste0("/media/work/tmp/manhattan_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix)
   ecf_file_name <- paste0("~/Dropbox/FIGI/Results/", exposure, "/files/EasyStrata_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".ecf")
 
@@ -242,25 +224,26 @@ create_manhattanplot <- function(dat, exposure, covars, stat, df, annotation_fil
       --astrDefaultColourChr gray70;gray80
       --blnYAxisBreak 1
       --numYAxisBreak 22
+      #--numPvalOffset 0.01
       # Annotation
       --fileAnnot /home/rak/data/Annotations/", annotation_file, "
       --numAnnotPosLim 1
       # Horizontal lines
-      --anumAddPvalLine 5e-8;5e-6
+      --anumAddPvalLine 5e-6;5e-8
       --anumAddPvalLineLty 6;6
-      --astrAddPvalLineCol coral3;blue
+      --astrAddPvalLineCol blue;red
       # Other Graphical Params
-      --anumParMar 7;4;7;4
-      --numDefaultSymbol 20
+      --anumParMar 7;5;7;3
+      --numDefaultSymbol 1
       --numDefaultCex 0.6
-      --numCexAxis 1.2
-      --numCexLab 1.2
-      --arcdSymbolCrit P<5e-8
-      --anumSymbol 17
-      --arcdColourCrit P<5e-8
-      --astrColour gray30
-      --arcdCexCrit P<5e-8
-      --anumCex 1.2
+      --numCexAxis 1.7
+      --numCexLab 1.7
+      --arcdSymbolCrit  (P>5e-8 & P<5e-6);P<5e-8
+      --anumSymbol 20;19
+      --arcdColourCrit (P>5e-8 & P<5e-6);P<5e-8
+      --astrColour gray55;black
+      --arcdCexCrit (P>5e-8 & P<5e-6);P<5e-8
+      --anumCex 1.6;1.3
 
       STOP EASYX"), file = ecf_file_name, append = F)
 
@@ -290,28 +273,20 @@ create_manhattanplot <- function(dat, exposure, covars, stat, df, annotation_fil
 #' @import data.table
 #'
 #' @examples format_data_twostep_data(gxe, 'chiSqG', 5, 0.05)
-
-
-# dat <- gxe
-# stats_step1 <- 'chiSqG'
-# sizeBin0 = 5
-# alpha = 0.05
-
-
 format_twostep_data <- function(dat, stats_step1, sizeBin0, alpha) {
 
   # quick function to calculate p values from chisq stats depending on method
   create_pval_info <- function(dat, stats_step1, df=1) {
     data.table(dat)[, step1p := pchisq(dat[, eval(quote(stats_step1))], df = df, lower.tail = F)
-      ][
-      , step2p := pchisq(dat[,'chiSqGxE'],  df = 1, lower.tail = F)
-      ][
-      , y := -log10(step2p)
-      ][
-      order(step1p)
-      ][
-      , MapInfo := Location
-      ]
+                    ][
+                      , step2p := pchisq(dat[,'chiSqGxE'],  df = 1, lower.tail = F)
+                      ][
+                        , y := -log10(step2p)
+                        ][
+                          order(step1p)
+                          ][
+                            , MapInfo := Location
+                            ]
   }
 
   if(stats_step1 == 'chiSqEDGE') {
@@ -358,18 +333,6 @@ format_twostep_data <- function(dat, stats_step1, sizeBin0, alpha) {
 #' @export
 #'
 #' @examples create_twostep_weighted_plot(gxe_twostep, exposure = plot_exposure, covars = plot_covariates, sizeBin0 = 5, alpha = 0.05, binsToPlot = 10, statistic = 'chiSqG')
-
-
-# dat = gxe_twostep
-# exposure = plot_exposure
-# covars = plot_covariates
-# sizeBin0 = 5
-# alpha = 0.05
-# binsToPlot = 10
-# statistic = 'chiSqG'
-# filename_suffix = ""
-
-
 create_twostep_weighted_plot <- function(dat, exposure, covars, sizeBin0, alpha, binsToPlot, statistic, filename_suffix = "") {
 
   cases <- unique(data.frame(dat[, 'Cases']))
@@ -418,33 +381,35 @@ create_twostep_weighted_plot <- function(dat, exposure, covars, sizeBin0, alpha,
   head(glist[[1]]) # for reference
 
   png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
-  color <- rep(c("grey70","grey80"),100)
+  color <- rep(c("#377EB8","#4DAF4A"),100)
+  par(mar=c(6, 7, 6, 3))
   plot(glist[[1]][,x], glist[[1]][,y],
-       col = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 'darkred','grey70'),
-       pch = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 19, 4),
+       col = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], '#E41A1C','#377EB8'),
+       pch = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 19, 20),
+       cex = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 1.3, 1.7),
        xlab="Bin number for step1 p value",
        ylab="-log10(step2 chiSqGxE p value)",
        xlim=c(0,binsToPlot),
        ylim=c(0,min.p),
        axes=F,
-       cex.main = 1.6,
-       cex.axis = 1.3,
-       cex.lab = 1.3,
-       cex.sub = 1.3,
-       cex = 0.8)
+       cex.main = 1.7,
+       cex.axis = 1.7,
+       cex.lab = 1.7,
+       cex.sub = 1.7)
+  # cex = 1.2)
   lines(glist[[1]][,x], glist[[1]][,ref], col = "black", lwd=1)
 
-  # the rest of the points ...  =|
-  # (adding to current plot..)
+  # the rest of the points
   for(i in 2:binsToPlot){
     points(glist[[i]][,x], glist[[i]][,y],
-           col = ifelse(glist[[i]][,SNP] %in% significant_hits$SNP, 'darkred', color[i]),
-           pch = ifelse(glist[[i]][,SNP] %in% significant_hits$SNP, 19, 4),
-           cex.main = 1.6,
-           cex.axis = 1.3,
-           cex.lab = 1.3,
-           cex.sub = 1.3,
-           cex = 0.8)
+           col = ifelse(glist[[i]][,SNP] %in% significant_hits$SNP, '#E41A1C', color[i]),
+           pch = ifelse(glist[[i]][,SNP] %in% significant_hits$SNP, 19, 20),
+           cex = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 1.3, 1.7),
+           cex.main = 1.7,
+           cex.axis = 1.7,
+           cex.lab = 1.7,
+           cex.sub = 1.7)
+    # cex = 1.2)
     lines(glist[[i]][,x], glist[[i]][,ref], col = "black",lwd = 1)
   }
 
@@ -455,12 +420,11 @@ create_twostep_weighted_plot <- function(dat, exposure, covars, sizeBin0, alpha,
   #        col= color[num], pch = 19, cex = 0.5)
   # lines(glist[[num]][,x], rep(last.sig, nrow(glist[[num]])) ,col="black",lwd=2) # need to fix to create last horizontal line
 
-  axis(1, at = c(-1.5, seq(0.5, binsToPlot-0.5, 1)), label = c(0, seq(1, binsToPlot, 1)), cex.axis = 1)
-  axis(2, at = c(0:floor(min.p)), label = c(0:min.p), cex.axis=1)
-  title(main = write_twostep_weightedHT_plot_title(statistic, exposure, covars, total), sub = "iBin Size = 5, alpha = 0.05", cex.main = 1.6, cex.sub = 1.3)
+  axis(1, at = c(-1.5, seq(0.5, binsToPlot-0.5, 1)), label = c(0, seq(1, binsToPlot, 1)), cex.axis = 1.7)
+  axis(2, at = c(0:floor(min.p)), label = c(0:min.p), cex.axis=1.7)
+  title(main = write_twostep_weightedHT_plot_title(statistic, exposure, covars, total), sub = "iBin Size = 5, alpha = 0.05", cex.main = 2, cex.sub = 1.7)
 
   dev.off()
-
 }
 
 
@@ -591,34 +555,34 @@ create_twostep_weighted_plot_expectation <- function(dat, exposure, covars, size
 
   png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
 
-  color <- rep(c("grey70","grey80"),100)
-
+  color <- rep(c("#377EB8","#4DAF4A"),100)
+  par(mar=c(6, 7, 6, 3))
   # first bin
   plot(glist[[1]][,mapinfo], glist[[1]][,logstep2p],
-       col = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 'darkred','grey70'),
-       pch = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 19, 4),
+       col = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], '#E41A1C','#377EB8'),
+       pch = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 19, 20),
+       cex = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 1.3, 1.7),
        xlab="Bin number for step1 p value",
        ylab="-log10(step2 chiSqGxE p value)",
        xlim=c(0,binsToPlot),
        ylim=c(0,logp_plot_limit),
        axes=F,
-       cex.main = 1.6,
-       cex.axis = 1.3,
-       cex.lab = 1.3,
-       cex.sub = 1.3,
-       cex = 0.8)
+       cex.main = 1.7,
+       cex.axis = 1.7,
+       cex.lab = 1.7,
+       cex.sub = 1.7)
   lines(glist[[1]][,mapinfo], glist[[1]][,log_binalpha], col = "black", lwd=1)
 
   # remaining bins
   for(i in 2:binsToPlot){
     points(glist[[i]][,mapinfo], glist[[i]][,logstep2p],
-           col = ifelse(glist[[i]][,SNP] %in% significant_hits$SNP, 'darkred', color[i]),
-           pch = ifelse(glist[[i]][,SNP] %in% significant_hits$SNP, 19, 4),
-           cex.main = 1.6,
-           cex.axis = 1.3,
-           cex.lab = 1.3,
-           cex.sub = 1.3,
-           cex = 0.8)
+           col = ifelse(glist[[i]][,SNP] %in% significant_hits$SNP, '#E41A1C', color[i]),
+           pch = ifelse(glist[[i]][,SNP] %in% significant_hits$SNP, 19, 20),
+           cex = ifelse(glist[[1]][,SNP] %in% significant_hits[,SNP], 1.3, 1.7),
+           cex.main = 1.7,
+           cex.axis = 1.7,
+           cex.lab = 1.7,
+           cex.sub = 1.7)
     lines(glist[[i]][,mapinfo], glist[[i]][,log_binalpha],
           col = "black",lwd = 1)
   }
@@ -630,9 +594,9 @@ create_twostep_weighted_plot_expectation <- function(dat, exposure, covars, size
   #        col= color[num], pch = 19, cex = 0.5)
   # lines(glist[[num]][,x], rep(last.sig, nrow(glist[[num]])) ,col="black",lwd=2) # need to fix to create last horizontal line
 
-  axis(1, at = c(-1.5, seq(0.5, binsToPlot-0.5, 1)), label = c(0, seq(1, binsToPlot, 1)), cex.axis = 1)
-  axis(2, at = c(0:floor(logp_plot_limit)), label = c(0:logp_plot_limit), cex.axis=1)
-  title(main = write_twostep_weightedHT_plot_title(statistic, exposure, covars, total), sub = "iBin Size = 5, alpha = 0.05", cex.main = 1.6, cex.sub = 1.3)
+  axis(1, at = c(-1.5, seq(0.5, binsToPlot-0.5, 1)), label = c(0, seq(1, binsToPlot, 1)), cex.axis = 1.7)
+  axis(2, at = c(0:floor(logp_plot_limit)), label = c(0:logp_plot_limit), cex.axis=1.7)
+  title(main = write_twostep_weightedHT_plot_title(statistic, exposure, covars, total), sub = "iBin Size = 5, alpha = 0.05", cex.main = 2, cex.sub = 1.7)
 
   dev.off()
 
