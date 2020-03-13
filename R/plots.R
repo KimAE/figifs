@@ -75,7 +75,7 @@ create_qqplot <- function(dat, exposure, covars, stat, df, filename_suffix = "")
   lambda1000 <- 1 + (lambda - 1) * ( (1/cases + 1/controls) / (1/(2*cases1000) + 1/(2*controls1000)))
 
   # plotting function
-  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/qq_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/qq_", stat, "_", exposure, filename_suffix, ".png"), height = 720, width = 1280)
   qqman::qq(pvals,
             xlab = "Expected -log10(p)",
             ylab = "Observed -log10(p)",
@@ -141,7 +141,7 @@ create_qqplot_ge <- function(dat, exposure, covars, stat, df, filename_suffix = 
     }
 
    # plotting function
-  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/qq_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/qq_", stat, "_", exposure, filename_suffix, ".png"), height = 720, width = 1280)
   qqman::qq(pvals,
             xlab = "Expected -log10(p)",
             ylab = "Observed -log10(p)",
@@ -168,7 +168,6 @@ create_qqplot_ge <- function(dat, exposure, covars, stat, df, filename_suffix = 
 #'
 #' @param dat Input data
 #' @param exposure Exposure variable (string)
-#' @param covars Covariate string vector
 #' @param stat GxEScan results chi-square statistic
 #' @param df Degrees of freedom
 #' @param annotation_file File to be used for annotation. Should located in /media/work/tmp
@@ -178,7 +177,7 @@ create_qqplot_ge <- function(dat, exposure, covars, stat, df, filename_suffix = 
 #' @export
 #'
 #' @examples create_manhattanplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")
-create_manhattanplot <- function(dat, exposure, covars, stat, df, annotation_file, filename_suffix = "") {
+create_manhattanplot <- function(dat, exposure, stat, df, annotation_file, filename_suffix = "") {
 
   cases <- unique(dat[, 'Cases'])
   controls <- unique(dat[, 'Subjects']) - unique(dat[, 'Cases'])
@@ -191,14 +190,14 @@ create_manhattanplot <- function(dat, exposure, covars, stat, df, annotation_fil
                   BP = Location) %>%
     dplyr::select(SNP, CHR, BP, P)
 
-  write.table(dat, file = paste0("/media/work/tmp/manhattan_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix), quote = F, row.names = F, sep = '\t')
+  write.table(dat, file = paste0("/media/work/tmp/manhattan_", stat, "_", exposure, filename_suffix), quote = F, row.names = F, sep = '\t')
 
   # create ecf file
   ecf1 <- paste0("~/Dropbox/FIGI/Results/", exposure, "/plots")
   ecf2 <- "SNP;CHR;BP;P"
   ecf3 <- "character;numeric;numeric;numeric"
-  ecf4 <- paste0("/media/work/tmp/manhattan_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix)
-  ecf_file_name <- paste0("~/Dropbox/FIGI/Results/", exposure, "/files/EasyStrata_", stat, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".ecf")
+  ecf4 <- paste0("/media/work/tmp/manhattan_", stat, "_", exposure, filename_suffix)
+  ecf_file_name <- paste0("~/Dropbox/FIGI/Results/", exposure, "/files/EasyStrata_", stat, "_", exposure, filename_suffix, ".ecf")
 
   cat(paste0("DEFINE	--pathOut ", ecf1, "
       --acolIn ", ecf2, "
@@ -380,7 +379,7 @@ create_twostep_weighted_plot <- function(dat, exposure, covars, sizeBin0, alpha,
   # CREATE PLOT
   head(glist[[1]]) # for reference
 
-  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure, filename_suffix, ".png"), height = 720, width = 1280)
   color <- rep(c("#377EB8","#4DAF4A"),100)
   par(mar=c(6, 7, 6, 3))
   plot(glist[[1]][,x], glist[[1]][,y],
@@ -553,7 +552,7 @@ create_twostep_weighted_plot_expectation <- function(dat, exposure, covars, size
   # CREATE PLOT
   head(glist[[1]]) # for reference
 
-  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure, "_", paste0(covars, collapse = "_"), filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure, "_expectation_based",  filename_suffix, ".png"), height = 720, width = 1280)
 
   color <- rep(c("#377EB8","#4DAF4A"),100)
   par(mar=c(6, 7, 6, 3))
