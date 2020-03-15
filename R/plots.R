@@ -552,7 +552,7 @@ create_twostep_weighted_plot_expectation <- function(dat, exposure, covars, size
   # CREATE PLOT
   head(glist[[1]]) # for reference
 
-  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure, "_expectation_based",  filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure,  filename_suffix, ".png"), height = 720, width = 1280)
 
   color <- rep(c("#377EB8","#4DAF4A"),100)
   par(mar=c(6, 7, 6, 3))
