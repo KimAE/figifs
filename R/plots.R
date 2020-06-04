@@ -48,7 +48,7 @@ write_plot_title <- function(stat, exposure, covars, N) {
 
 #' create_qqplot
 #'
-#' Function creates a QQ plot and outputs *.png file (default location is a './plot' folder).
+#' Function creates a QQ plot and outputs a PNG file
 #'
 #' @param dat Input data
 #' @param exposure Exposure variable
@@ -56,7 +56,7 @@ write_plot_title <- function(stat, exposure, covars, N) {
 #' @param df Degrees of Freedom
 #' @param filename_suffix For convenience when you're creating test plots
 #'
-#' @return Writes a .png file into location ~/Dropbox/FIGI/Results/exposure/plot/
+#' @return Writes a PNG file into /media/work/gwis/posthoc/exposure
 #' @export
 #'
 #' @examples create_qqplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")
@@ -75,7 +75,7 @@ create_qqplot <- function(dat, exposure, covars, stat, df, filename_suffix = "")
   lambda1000 <- 1 + (lambda - 1) * ( (1/cases + 1/controls) / (1/(2*cases1000) + 1/(2*controls1000)))
 
   # plotting function
-  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/qq_", stat, "_", exposure, filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("/media/work/gwis/posthoc/", exposure, "/qq_", stat, "_", exposure, filename_suffix, ".png"), height = 720, width = 1280)
   qqman::qq(pvals,
             xlab = "Expected -log10(p)",
             ylab = "Observed -log10(p)",
@@ -96,7 +96,7 @@ create_qqplot <- function(dat, exposure, covars, stat, df, filename_suffix = "")
 
 #' create_qqplot_ge
 #'
-#' Function creates a QQ plot and outputs *.png file (default location is a './plots' folder). Using a separate function for GE, GE among Controls, and GE among Cases (Case-only analysis) for convenience
+#' Function creates a QQ plot and outputs a PNG file. Using a separate function for GE, GE among Controls, and GE among Cases (Case-only analysis) just for cosmetic reasons and to omit lambda1000
 #'
 #' @param dat Input data
 #' @param exposure Exposure variable
@@ -104,7 +104,7 @@ create_qqplot <- function(dat, exposure, covars, stat, df, filename_suffix = "")
 #' @param df Degrees of Freedom
 #' @param filename_suffix For convenience when you're creating test plots
 #'
-#' @return Writes a .png file into location ~/Dropbox/FIGI/Results/exposure/plots/
+#' @return Writes a .png file into location /media/work/gwis/posthoc/exposure
 #' @export
 #'
 #' @examples create_qqplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")
@@ -114,19 +114,6 @@ create_qqplot_ge <- function(dat, exposure, covars, stat, df, filename_suffix = 
   # for control/case only, just report lambda
   pvals <- calculate_pval(dat[, stat], df)
   lambda <- round( (median(qchisq(1-pvals, df)) / qchisq(0.5, df)), 4)
-
-  # #delete
-  # pvals <- calculate_pval(gxe[, 'chiSqGxE'], 1)
-  # summary(pvals)
-  # lambda <- round( (median(qchisq(1-pvals, 1)) / qchisq(0.5, 1)), 4)
-  #
-  # pvals <- calculate_pval(gxe[, 'chiSqControl'], 1)
-  # summary(pvals)
-  # pvals2 <- pvals[which(!is.na(pvals))]
-  # lambda <- round( (median(qchisq(1-pvals2, 1)) / qchisq(0.5, 1)), 4)
-  #
-  # miss <- filter(gxe, is.na(chiSqControl))
-  # #delete
 
   # get totals for plot title
   cases <- unique(dat[, 'Cases'])
@@ -141,7 +128,7 @@ create_qqplot_ge <- function(dat, exposure, covars, stat, df, filename_suffix = 
     }
 
    # plotting function
-  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/qq_", stat, "_", exposure, filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("/media/work/gwis/posthoc/", exposure, "/qq_", stat, "_", exposure, filename_suffix, ".png"), height = 720, width = 1280)
   qqman::qq(pvals,
             xlab = "Expected -log10(p)",
             ylab = "Observed -log10(p)",
@@ -173,7 +160,7 @@ create_qqplot_ge <- function(dat, exposure, covars, stat, df, filename_suffix = 
 #' @param annotation_file File to be used for annotation. Should located in /media/work/tmp
 #' @param filename_suffix For convenience when you're creating test plots
 #'
-#' @return Writes a .png file into location ~/Dropbox/FIGI/Results/exposure/plots/
+#' @return Writes a .png file into location /media/work/gwis/posthoc/exposure
 #' @export
 #'
 #' @examples create_manhattanplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")
@@ -193,11 +180,11 @@ create_manhattanplot <- function(dat, exposure, stat, df, annotation_file, filen
   write.table(dat, file = paste0("/media/work/tmp/manhattan_", stat, "_", exposure, filename_suffix), quote = F, row.names = F, sep = '\t')
 
   # create ecf file
-  ecf1 <- paste0("~/Dropbox/FIGI/Results/", exposure, "/plots")
+  ecf1 <- paste0("/media/work/gwis/posthoc/", exposure, "/")
   ecf2 <- "SNP;CHR;BP;P"
   ecf3 <- "character;numeric;numeric;numeric"
   ecf4 <- paste0("/media/work/tmp/manhattan_", stat, "_", exposure, filename_suffix)
-  ecf_file_name <- paste0("~/Dropbox/FIGI/Results/", exposure, "/files/EasyStrata_", stat, "_", exposure, filename_suffix, ".ecf")
+  ecf_file_name <- paste0("/media/work/gwis/posthoc/", exposure, "/EasyStrata_", stat, "_", exposure, filename_suffix, ".ecf")
 
   cat(paste0("DEFINE	--pathOut ", ecf1, "
       --acolIn ", ecf2, "
@@ -379,7 +366,7 @@ create_twostep_weighted_plot <- function(dat, exposure, covars, sizeBin0, alpha,
   # CREATE PLOT
   head(glist[[1]]) # for reference
 
-  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure, filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("/media/work/gwis/posthoc/", exposure, "/twostep_wht_", statistic, "_", exposure, filename_suffix, ".png"), height = 720, width = 1280)
   color <- rep(c("#377EB8","#4DAF4A"),100)
   par(mar=c(6, 7, 6, 3))
   plot(glist[[1]][,x], glist[[1]][,y],
@@ -552,7 +539,7 @@ create_twostep_weighted_plot_expectation <- function(dat, exposure, covars, size
   # CREATE PLOT
   head(glist[[1]]) # for reference
 
-  png(paste0("~/Dropbox/FIGI/Results/", exposure, "/plots/twostep_wht_", statistic, "_", exposure,  filename_suffix, ".png"), height = 720, width = 1280)
+  png(paste0("/media/work/gwis/posthoc/", exposure, "/twostep_wht_", statistic, "_", exposure,  filename_suffix, ".png"), height = 720, width = 1280)
 
   color <- rep(c("#377EB8","#4DAF4A"),100)
   par(mar=c(6, 7, 6, 3))

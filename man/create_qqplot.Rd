@@ -18,10 +18,10 @@ create_qqplot(dat, exposure, covars, stat, df, filename_suffix = "")
 \item{filename_suffix}{For convenience when you're creating test plots}
 }
 \value{
-Writes a .png file into location ./figures/
+Writes a PNG file into /media/work/gwis/posthoc/exposure
 }
 \description{
-Function creates a QQ plot and outputs *.png file (default location is a './figures' folder).
+Function creates a QQ plot and outputs a PNG file
 }
 \examples{
 create_qqplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")

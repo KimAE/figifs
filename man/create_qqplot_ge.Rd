@@ -18,10 +18,10 @@ create_qqplot_ge(dat, exposure, covars, stat, df, filename_suffix = "")
 \item{filename_suffix}{For convenience when you're creating test plots}
 }
 \value{
-Writes a .png file into location ./figures/
+Writes a .png file into location /media/work/gwis/posthoc/exposure
 }
 \description{
-Function creates a QQ plot and outputs *.png file (default location is a './figures' folder). Using a separate function for GE, GE among Controls, and GE among Cases (Case-only analysis) for convenience
+Function creates a QQ plot and outputs a PNG file. Using a separate function for GE, GE among Controls, and GE among Cases (Case-only analysis) just for cosmetic reasons and to omit lambda1000
 }
 \examples{
 create_qqplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")

@@ -5,30 +5,38 @@
 #=============================================================================#
 
 
-#' remove_low_count_cells
+#' remove_low_cell_count
 #'
-#' With data subsets, cell counts of outcome, exposure, and study_gxe can become low and cause regression errors. If exposure is categorical, 3-way tabulate exposure/outcome/study_gxe, remove studies with cell counts <= 10. If numeric, 2-way tabulate outcome/study_gxe, remove studies with cell counts == 0. NOTE THAT OUTCOME AND STUDY_GXE ARE HARDCODED.
+#' low cell counts of outcome, exposure, and study_gxe cause regression errors. If exposure is categorical, 3-way tabulate exposure/outcome/study_gxe, remove studies with cell counts <= 1. If numeric, 2-way tabulate outcome/study_gxe, remove studies with cell counts == 0. variables 'outcome' and 'study_gxe' are hardcoded
 #'
-#' @param dat Input data
-#' @param exposure Exposure variable (only used if categorical)
-#' @param is_categorical Logical, categorical TRUE or FALSE
+#' @param ds dataset
+#' @param exposure string containing exposure variable
+#' @param min_cell_size minimum cell size allowed (numeric)
 #'
-#' @return Data
+#' @return returns processed input dataframe
 #' @export
 #'
-#' @examples remove_low_count_cells(dat, exposure, is_categorical = TRUE)
-remove_low_count_cells <- function(dat, exposure, is_categorical, min_cell_size) {
-  if(is_categorical == T) {
-    drops <- data.frame(table(dat$outcome, dat[,exposure], dat$study_gxe)) %>%
+#' @examples remove_low_cell_count(ds, exposure, min_cell_size = 1)
+remove_low_cell_count <- function(ds, min_cell_size = 1) {
+  
+  # only binary variables are modeled categorically
+  # all else are modeled as continuous (including Q4 variables)
+  categorical <- ifelse(length(table(ds[, exposure])) <= 2, T, F)
+  
+  if(categorical) {
+    drops <- data.frame(table(ds$outcome, ds[, exposure], ds$study_gxe)) %>% 
       filter(Freq <= min_cell_size)
-    dat <- filter(dat, !study_gxe %in% unique(drops$Var3))
-    return(dat)
+    tmp <- ds %>% 
+      filter(!study_gxe %in% drops$Var3) %>% 
+      mutate(study_gxe = fct_drop(study_gxe))
   } else {
-    drops <- data.frame(table(dat$outcome, dat$study_gxe)) %>%
-      filter(Freq <= 5)
-    dat <- filter(dat, !study_gxe %in% unique(drops$Var2))
-    return(dat)
+    drops <- data.frame(table(ds$outcome, ds$study_gxe)) %>% 
+      filter(Freq <= min_cell_size)
+    tmp <- ds %>% 
+      filter(!study_gxe %in% drops$Var2) %>% 
+      mutate(study_gxe = fct_drop(study_gxe))
   }
+  return(tmp)
 }
 
 
@@ -81,11 +89,11 @@ get_estimates_e_by_group <- function(dat, outcome, exposure, group, ...) {
   dat <- dat %>%
     group_by( .data[[group]] )
 
-  glm_formula <- reformulate(termlabels = c( {{ exposure }}, covariates) , response = {{ outcome }} )
+  glm_formula <- reformulate(termlabels = c( exposure, covariates) , response = outcome )
   results_beta <- dplyr::do(dat, broom::tidy(glm(glm_formula, data = . , family = 'binomial')))
   results_ci   <- dplyr::do(dat, broom::confint_tidy(glm(glm_formula, data = . , family = 'binomial')))
 
-  results <- dplyr::bind_cols(results_beta, results_ci) %>%
+  results <- dplyr::bind_cols(results_beta, results_ci[,c(2,3)]) %>%
     dplyr::ungroup() %>%
     dplyr::filter(grepl(exposure, term))
   return(results)
@@ -99,8 +107,10 @@ get_estimates_e_by_group <- function(dat, outcome, exposure, group, ...) {
 #' Wrapper function to run meta-analysis, create forest and funnel plots. Uses package 'meta'.
 #'
 #' @param dat Data frame containing counts and regression estimates BY GROUP
-#' @param forest_plot_title Plot title
-#' @param filename_suffix Filename suffix following exposure (usually covariates)
+#' @param exposure string containing exposure variable
+#' @param covariates vector of adjustment covariates
+#' @param forest_plot_title plot title
+#' @param filename_suffix filename suffix following exposure (usually covariates)
 #' @param forest_height png height
 #' @param forest_width png width
 #' @param funnel_height png height
@@ -109,12 +119,28 @@ get_estimates_e_by_group <- function(dat, outcome, exposure, group, ...) {
 #' @return Outputs png files for forest and funnel plots
 #' @export
 #'
-#' @examples meta_analysis_wrapper(gxe_meta, "title", "age_ref_imp_sex_study_gxe", 13, 8.5, 8, 8.5)
-meta_analysis_wrapper <- function(dat, forest_plot_title, filename_suffix, forest_height, forest_width, funnel_height, funnel_width) {
-
+#' @examples meta_analysis_wrapper(gxe_meta, 'asp_ref', c('sex'), "title", "age_ref_imp_sex_study_gxe", 13, 8.5, 8, 8.5)
+meta_analysis_wrapper <- function(dat, exposure, covariates, forest_plot_title, filename_suffix, forest_height, forest_width, funnel_height, funnel_width) {
+  
+  output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
+  
+  tmp <- remove_low_cell_count(dat)
+  count_gxe_subset <- get_counts_outcome_by_group(tmp, 'outcome', 'study_gxe') %>% 
+    mutate(study_gxe = as.character(study_gxe))
+  count_gxe_all <- full_join(study_design, count_gxe_subset, 'study_gxe')
+  
+  gxe_glm <- get_estimates_e_by_group(tmp, "outcome", exposure, group = "study_gxe", covariates) %>% 
+    mutate(study_gxe = as.character(study_gxe))
+  # forest_plot_title <- paste0("All subjects\nOutcome ~ ", exposure, " + ", paste0(covariates, collapse = " + "))
+  gxe_meta <- dplyr::full_join(count_gxe_all, gxe_glm, 'study_gxe')
+  
+  # don't display warnings
+  oldw <- getOption("warn")
+  options(warn = -1)
+  
   results_meta <- meta::metagen(estimate,
                                 std.error,
-                                data=dat,
+                                data=gxe_meta,
                                 studlab=paste(study_gxe),
                                 comb.fixed = FALSE,
                                 comb.random = TRUE,
@@ -123,8 +149,10 @@ meta_analysis_wrapper <- function(dat, forest_plot_title, filename_suffix, fores
                                 prediction=TRUE,
                                 sm="OR",
                                 byvar = study_design)
-
-  png(paste0("/media/work/tmp_images/meta_analysis_", params$exposure,  "_", filename_suffix, ".png"), height = forest_height, width = forest_width, units = 'in', res = 150)
+  options(warn = oldw)
+  
+  # png(paste0("/media/work/gwis/posthoc/", exposure, "/meta_analysis_", exposure,  "_", filename_suffix, ".png"), height = forest_height, width = forest_width, units = 'in', res = 150)
+  png(paste0(output_dir, "meta_analysis_", exposure,  "_", filename_suffix, ".png"), height = forest_height, width = forest_width, units = 'in', res = 150)
   meta::forest(results_meta,
                layout = "JAMA",
                # text.predict = "95% CI",
@@ -136,11 +164,13 @@ meta_analysis_wrapper <- function(dat, forest_plot_title, filename_suffix, fores
                col.random = 'red')
   grid.text(forest_plot_title, 0.5, .98, gp=gpar(cex=1))
   dev.off()
-
-  png(paste0("/media/work/tmp_images/funnel_plot_", params$exposure,  "_", filename_suffix, ".png"), height = funnel_height, width = funnel_width, units = 'in', res = 150)
+  
+  png(paste0(output_dir, "funnel_plot_", exposure,  "_", filename_suffix, ".png"), height = funnel_height, width = funnel_width, units = 'in', res = 150)
+  oldw <- getOption("warn")
+  options(warn = -1)
   meta::funnel(results_meta, sm="OR", studlab = T, pos = 4, col.random = 'red')
+  options(warn = oldw)
   dev.off()
-
 }
 
 
@@ -190,7 +220,5 @@ get_estimates_gxe_by_group <- function(df, outcome, exposure, group, dosage, ...
   return(results)
 
 }
-
-
 
 

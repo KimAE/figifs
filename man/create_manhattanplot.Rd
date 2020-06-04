@@ -7,7 +7,6 @@
 create_manhattanplot(
   dat,
   exposure,
-  covars,
   stat,
   df,
   annotation_file,
@@ -19,8 +18,6 @@ create_manhattanplot(
 
 \item{exposure}{Exposure variable (string)}
 
-\item{covars}{Covariate string vector}
-
 \item{stat}{GxEScan results chi-square statistic}
 
 \item{df}{Degrees of freedom}
@@ -30,7 +27,7 @@ create_manhattanplot(
 \item{filename_suffix}{For convenience when you're creating test plots}
 }
 \value{
-Writes a .png file into location ./figures/
+Writes a .png file into location /media/work/gwis/posthoc/exposure
 }
 \description{
 Function to create manhattanplot. Uses package EasyStrata - need to write 2 files: results flat text (with appropriate columns), and .ecf file which contains EasyStrata parameters.

@@ -11,10 +11,12 @@
 !*.sh
 !*.css
 
-# black list some folders again
+# black list some files and folders again
 /figures
 /Meetings
 /Documentation
 /old
 **/*_cache
 .Rproj.user
+.Rproj
+meta_analysis_old.R

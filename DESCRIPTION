@@ -4,12 +4,7 @@ Title: Personal package with useful functions for FIGI analysis
 Version: 0.1.0
 Author: Andre Kim
 Maintainer: Andre Kim <andreeki@usc.edu>
-Description: Functions to perform the following:
-    Calculate lambda/lambda1000
-    Create QQ Plots
-    Create Manhattan Plots
-    Create E main effects meta-analysis
-    Create bar/box plots of E var
+Description: Package contains functions to process GWIS results from GxEScanR in addition to conduct a variety of posthoc analyses.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
@@ -24,5 +19,8 @@ Imports:
     metafor,
     EasyStrata,
     effects,
-    data.table
-RoxygenNote: 7.0.2
+    data.table,
+    stargazer,
+    nnet,
+    car
+RoxygenNote: 7.1.0
