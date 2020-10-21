@@ -12,7 +12,8 @@ create_twostep_weighted_plot(
   alpha,
   binsToPlot,
   statistic,
-  filename_suffix = ""
+  filename_suffix = "",
+  output_dir
 )
 }
 \arguments{

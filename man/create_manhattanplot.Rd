@@ -5,17 +5,16 @@
 \title{create_manhattanplot}
 \usage{
 create_manhattanplot(
-  dat,
+  x,
   exposure,
   stat,
   df,
   annotation_file,
+  output_dir,
   filename_suffix = ""
 )
 }
 \arguments{
-\item{dat}{Input data}
-
 \item{exposure}{Exposure variable (string)}
 
 \item{stat}{GxEScan results chi-square statistic}
@@ -25,6 +24,8 @@ create_manhattanplot(
 \item{annotation_file}{File to be used for annotation. Should located in /media/work/tmp}
 
 \item{filename_suffix}{For convenience when you're creating test plots}
+
+\item{dat}{Input data}
 }
 \value{
 Writes a .png file into location /media/work/gwis/posthoc/exposure

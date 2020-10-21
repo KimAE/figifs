@@ -135,13 +135,14 @@ create_glm_stratified_plot <- function(model, G, E, gxe) {
 #' @param covariates vector of adjustment covariates
 #' @param strata string containing stratifying variable (either sex or study_design)
 #' @param filename_suffix string containing filename suffix
+#' @param output_dir string output directory
 #'
 #' @return HTML file
 #' @export
 #'
 #' @examples pooled_analysis_glm(figi, 'asp_ref', c('age_ref_imp', 'sex', 'pc1', 'pc2', 'pc3', 'study_gxe'), strata = 'sex', 'testing')
-pooled_analysis_glm <- function(ds, exposure, covariates, strata = c('sex', 'study_design'), filename_suffix) {
-  output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
+pooled_analysis_glm <- function(ds, exposure, covariates, strata = c('sex', 'study_design'), filename_suffix, output_dir) {
+  # output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
   strata <- match.arg(strata)
   number_of_levels <- nlevels(factor(ds[, strata]))
   ds[, 'strata_num'] <- as.numeric(factor(ds[, strata]))-1
@@ -186,10 +187,10 @@ pooled_analysis_glm <- function(ds, exposure, covariates, strata = c('sex', 'stu
   
   # save output html from stargazer
   out_html <- stargazer_helper(out,
-                                title=paste0(gsub('\\_', '\\\\_', strata), " stratified ", gsub('\\_', '\\\\_', exposure), " main effects"), 
-                                column.labels=col_label,
-                                coef=coefs, 
-                                notes=c("(PC and Study estimates omitted from table)"), single.row = T)
+                               title=paste0(gsub('\\_', '\\\\_', strata), " stratified ", gsub('\\_', '\\\\_', exposure), " main effects"), 
+                               column.labels=col_label,
+                               coef=coefs, 
+                               notes=c("(Study specific estimates omitted from table)"), single.row = T)
   
   # write object to html file
   cat(paste(out_html, collapse = "\n"), "\n",
@@ -210,13 +211,14 @@ pooled_analysis_glm <- function(ds, exposure, covariates, strata = c('sex', 'stu
 #' @param exposure string containing exposure variable
 #' @param covariates vector of adjustment covariates
 #' @param filename_suffix string containing filename suffix
+#' @param output_dir string output directory
 #'
 #' @return HTML file
 #' @export
 #'
 #' @examples pooled_analysis_multinom(ds, exposure, covariates, 'test')
-pooled_analysis_multinom <- function(ds, exposure, covariates, filename_suffix) {
-  output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
+pooled_analysis_multinom <- function(ds, exposure, covariates, filename_suffix, output_dir) {
+  # output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
   # no output in messages from multinom function
   # quiet <- function(x) {
   #   sink(tempfile())
@@ -247,14 +249,14 @@ pooled_analysis_multinom <- function(ds, exposure, covariates, filename_suffix) 
   sample_sizes = as.character(table(tmp$outcome_multinomial))
   
   out_html <- stargazer_helper(x1,
-                                title=paste0("Tumor site multinomial logistic regression (Control N = ", sample_sizes[1], ")"), 
-                                # column.labels=rep("vs. controls", 3),
-                                column.labels=paste0("(N=", sample_sizes[2:4], ")"),
-                                coef=list(exp(coefficients)), 
-                                notes=c("(PC and Study estimates omitted from table)"), single.row = T, 
-                                add.lines = list(c("Proximal vs. Distal pval", "", formatC(pval_prox_dist, format = "e", digits = 2)),
-                                                 c("Proximal vs. Rectal pval", "", formatC(pval_prox_rect, format = "e", digits = 2)),
-                                                 c("Distal vs. Rectal pval",   "", formatC(pval_dist_rect, format = "e", digits = 2))))
+                               title=paste0("Tumor site multinomial logistic regression (Control N = ", sample_sizes[1], ")"), 
+                               # column.labels=rep("vs. controls", 3),
+                               column.labels=paste0("(N=", sample_sizes[2:4], ")"),
+                               coef=list(exp(coefficients)), 
+                               notes=c("(Study specific estimates omitted from table)"), single.row = T, 
+                               add.lines = list(c("Proximal vs. Distal pval", "", formatC(pval_prox_dist, format = "e", digits = 2)),
+                                                c("Proximal vs. Rectal pval", "", formatC(pval_prox_rect, format = "e", digits = 2)),
+                                                c("Distal vs. Rectal pval",   "", formatC(pval_dist_rect, format = "e", digits = 2))))
   cat(paste(out_html, collapse = "\n"), "\n",
       file = paste0(output_dir, "main_effects_pooled_analysis_", exposure, "_", filename_suffix, ".html"), append = F)
   
@@ -263,3 +265,11 @@ pooled_analysis_multinom <- function(ds, exposure, covariates, filename_suffix) 
 
 # pooled_analysis_multinom(ds, exposure, covariates, 'test')
 
+
+
+
+# reload package (convenience)
+
+reload_figifs <- function() {
+  devtools::reload(pkgload::inst("figifs"))
+}

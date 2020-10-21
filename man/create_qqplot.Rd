@@ -4,7 +4,15 @@
 \alias{create_qqplot}
 \title{create_qqplot}
 \usage{
-create_qqplot(dat, exposure, covars, stat, df, filename_suffix = "")
+create_qqplot(
+  dat,
+  exposure,
+  covars,
+  stat,
+  df,
+  filename_suffix = "",
+  output_dir
+)
 }
 \arguments{
 \item{dat}{Input data}

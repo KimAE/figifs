@@ -212,6 +212,7 @@ fit_gxe_stratified <- function(ds,
 #' @param snp string containing data variable name of SNP (should match names in dataset)
 #' @param covariates_list vector of adjustment covariates
 #' @param method string describing GxE methods used. Only determines which LR test p-value to report in notes section of stargazer table. Possible choices include chiSqGxE, two-step, chiSqCase, chiSq2df, chiSq3df
+#' @param output_dir string output directory
 #' 
 #' @return saves a raw HTML file to be used in Rmarkdown documents. Output file naming pattern is 'gxe_method_snp_exposure_covariate_sets'. 
 #' @export
@@ -221,18 +222,33 @@ fit_gxe_covars <- function(ds,
                            exposure, 
                            snp, 
                            covariates_list, 
-                           method = c('chiSqGxE', 'two-step', 'chiSqCase', 'chiSq2df', 'chiSq3df')) {
+                           method = c('chiSqGxE', 'two-step', 'chiSqCase', 'chiSq2df', 'chiSq3df'),
+                           output_dir) {
   
   method <- match.arg(method)
-  output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
+  # output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
   
-  # flip dosage coding if linear model parameter is negative (protective)
-  # dg_model <- lm(as.formula(paste0("outcome ~ ", snp)), data = ds)
-  dg_model <- lm(paste0("outcome ~ ", snp, "*", exposure, "+", paste0(covariates_list[[1]], collapse = "+")), data = ds)
-  if(dg_model$coefficients[2] < 0) {
+  # SNP information
+  snp_info <- unlist(strsplit(snp, split = "_"))
+  
+  # check allele frequency
+  total_dosage <- sum(ds[,snp])
+  total_alleles <- nrow(ds) * 2
+  aaf <- total_dosage / total_alleles
+  
+  # ---- recode SNPs so that major allele is the reference group
+  if(aaf >= 0.5) {
     # flip dosages
-    ds[, paste0(snp)] <- abs(ds[, paste0(snp)] - 2)
+    ds[, snp] <- abs(ds[, paste0(snp)] - 2)
+    ds[, paste0(snp, '_dose')] <- abs(ds[, paste0(snp, '_dose')] - 2)
+    # assign ref/alt allele
+    ref_allele <- snp_info[4]
+    alt_allele <- snp_info[3]
+  } else {
+    ref_allele <- snp_info[3]
+    alt_allele <- snp_info[4]
   }
+
   
   # apply 'fit_gxe' over covariate_list
   out <- lapply(covariates_list, function(x) fit_gxe(ds, exposure, snp, covariates = x))
@@ -246,26 +262,29 @@ fit_gxe_covars <- function(ds,
   list_of_chisq <- lapply(out, function(x) x[[2]])
   col_label = paste0(paste0("Covariate Set ", seq(1, length(out))), " (", list_of_samplesizes, ")")
   
-  if(method == 'chiSqGxE' | method == "twostep") {
+  if(method == "chiSqGxE" | method == "twostep" | method == "chiSqCase") {
     gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq(x[[1]], df = 1, lower.tail = F), format = "e", digits = 5)))
     notes <- c("(PC and Study estimates omitted from table)", 
+               paste0("Reference allele = ", ref_allele),
                paste0(col_label, ", LRtest GxE p = ", gxe_pvalues))
   } else if(method == "chiSq2df") {
     gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq(x[[2]], df = 2, lower.tail = F), format = "e", digits = 5)))
     notes <- c("(PC and Study estimates omitted from table)", 
+               paste0("Reference allele = ", ref_allele),
                paste0(col_label, ", LRtest 2DF p = ", gxe_pvalues))
   } else if(method == "chiSq3df") {
     gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq((x[[2]] + x[[3]]), df = 3, lower.tail = F), format = "e", digits = 5)))
     notes <- c("(PC and Study estimates omitted from table)", 
+               paste0("Reference allele = ", ref_allele),
                paste0(col_label, ", LRtest 3DF p = ", gxe_pvalues))
   }
   
   # save output html from stargazer
   out_html <- stargazer_helper(list_of_glms,
-                                title=paste0(gsub("\\_", "\\\\_", snp), " x ", gsub('\\_', '\\\\_', exposure)), 
-                                column.labels=col_label,
-                                coef=coefs, 
-                                notes=notes, single.row = T)
+                               title=paste0(gsub("\\_", "\\\\_", snp), " x ", gsub('\\_', '\\\\_', exposure)), 
+                               column.labels=col_label,
+                               coef=coefs, 
+                               notes=notes, single.row = T)
   
   # write object to html file
   # cat(paste(out_html, collapse = "\n"), "\n", 
@@ -283,7 +302,7 @@ fit_gxe_covars <- function(ds,
 # functions to generate table of p-values
 # stratified by sex, study_design, and cancer_site_sum2
 # for multiple covariate sets, if requested
-# ---------------------------------------------------------------------------- #
+# ----------------------------------------------------------------------------
 
 
 #' calc_pval
@@ -318,6 +337,7 @@ calc_pval <- function(ds, exposure, snp, covariates,
     formula_eg           <- paste0("exposure_num ~ ", snp, " + ", covariates_formula)
     formula_eg_base      <- paste0("exposure_num ~ ",             covariates_formula)
   } else {
+    ds[, "exposure"]     <- ds[, exposure]
     formula_eg           <- paste0("exposure ~ ", snp, " + ", covariates_formula)
     formula_eg_base      <- paste0("exposure ~ ",             covariates_formula)
   }
@@ -390,6 +410,7 @@ calc_pval <- function(ds, exposure, snp, covariates,
 #' @param snp string containing data variable name of SNP (should match names in dataset)
 #' @param covariates_list list of vectors of adjustment covariate sets
 #' @param method string describing GxE methods used. Possible choices include chiSqG, chiSqGxE, chiSqGE, chiSqEDGE, chiSqCase, chiSq2df, chiSq3df
+#' @param output_dir string output directory
 #'
 #' @return a dataframe of counts and pvalues by strata and covariate set
 #' @export
@@ -399,10 +420,11 @@ pval_summary <- function(ds,
                          exposure, 
                          snp, 
                          covariates_list, 
-                         method = c('chiSqG', 'chiSqGxE', 'chiSqGE', 'chiSqEDGE', 'chiSqCase', 'chiSq2df', 'chiSq3df')) {
+                         method = c('chiSqG', 'chiSqGxE', 'chiSqGE', 'chiSqEDGE', 'chiSqCase', 'chiSq2df', 'chiSq3df'),
+                         output_dir) {
 
   method <- match.arg(method)
-  output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
+  # output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
   
   # apply helper function to list of covariate set vectors
   helper <- function(covars, analysis = c("counts", "pvalues")) {
@@ -477,9 +499,57 @@ pval_summary <- function(ds,
 
 
 
-
-
-
-
+#' posthoc_input
+#' 
+#' put together input data for posthoc analysis. a note about SNPs - makes it so that data contains chrX_BP_REF_ALT (dose), in addition to chrX_BP_REF_ALT_dose/p0/p1/p2. This function is for very specific use case, edit as needed! Also, paths are hardcoded, should be ok because I'm not changing it for a while now
+#'
+#' @param exposure 
+#' @param hrc_version 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+posthoc_input <- function(exposure, hrc_version, dosage_filename) {
+  # exposure subset as determined by analysis plan
+  exposure_subset <- readRDS(paste0("/media/work/gwis/results/input/FIGI_", hrc_version , "_gxeset_", exposure, "_basic_covars_glm.rds"))[,'vcfid']
+  
+  # binary dosage output
+  # geno <- readRDS(paste0("/media/work/gwis/posthoc/gwis_sig_results_output_", exposure, ".rds")) 
+  
+  geno <- readRDS(glue("/media/work/gwis/posthoc/{exposure}/{dosage_filename}"))
+  
+  geno_dose <- geno %>%
+    dplyr::select(-contains(c('p0', 'p1', 'p2')))
+  
+  # clean up SNP names from binarydosage output
+  # removes '_dose' from SNP name
+  snpname_clean <- function(x) {
+    tmp <- gsub("\\.", "\\_", x)
+    tmp <- gsub("X", "chr", tmp)
+    tmp <- gsub("\\_dose", "", tmp)
+    return(tmp)
+  }
+  
+  # cleans SNPs but keeps original suffixes ("_dose", "p0/p1/p2")
+  snpname_clean2 <- function(x) {
+    tmp <- gsub("\\.", "\\_", x)
+    tmp <- gsub("X", "chr", tmp)
+    return(tmp)
+  }
+  
+  names(geno_dose) <- snpname_clean(names(geno_dose))
+  names(geno) <- snpname_clean2(names(geno))
+  
+  # dataset that contains all gxe samples and variables (not specific to any exposure)
+  out <- readRDS(paste0("/media/work/gwis/results/input/FIGI_", hrc_version, "_gxeset_analysis_data_glm.rds")) %>%
+    filter(vcfid %in% exposure_subset) %>% 
+    inner_join(geno_dose, 'vcfid') %>%
+    inner_join(geno, 'vcfid') %>% 
+    mutate(cancer_site_sum2 = factor(cancer_site_sum2, levels = c("proximal", "distal", "rectal")))
+  
+  return(out)
+  
+}
 
 
