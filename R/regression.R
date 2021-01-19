@@ -190,7 +190,7 @@ pooled_analysis_glm <- function(ds, exposure, covariates, strata = c('sex', 'stu
                                title=paste0(gsub('\\_', '\\\\_', strata), " stratified ", gsub('\\_', '\\\\_', exposure), " main effects"), 
                                column.labels=col_label,
                                coef=coefs, 
-                               notes=c("(Study specific estimates omitted from table)"), single.row = T)
+                               notes=c("(Study specific and PC estimates omitted from table)"), single.row = T)
   
   # write object to html file
   cat(paste(out_html, collapse = "\n"), "\n",
@@ -253,7 +253,7 @@ pooled_analysis_multinom <- function(ds, exposure, covariates, filename_suffix, 
                                # column.labels=rep("vs. controls", 3),
                                column.labels=paste0("(N=", sample_sizes[2:4], ")"),
                                coef=list(exp(coefficients)), 
-                               notes=c("(Study specific estimates omitted from table)"), single.row = T, 
+                               notes=c("(Study specific and PC estimates omitted from table)"), single.row = T, 
                                add.lines = list(c("Proximal vs. Distal pval", "", formatC(pval_prox_dist, format = "e", digits = 2)),
                                                 c("Proximal vs. Rectal pval", "", formatC(pval_prox_rect, format = "e", digits = 2)),
                                                 c("Distal vs. Rectal pval",   "", formatC(pval_dist_rect, format = "e", digits = 2))))

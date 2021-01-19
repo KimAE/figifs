@@ -21,6 +21,3 @@ Plot title string
 \description{
 Function to create figure titles based on the results statistic plotted
 }
-\examples{
-write_plot_title('chiSqG', 'aspirin', c('sex', 'age'), 100000)
-}

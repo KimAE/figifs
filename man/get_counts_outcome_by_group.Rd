@@ -19,6 +19,3 @@ Tibble with case/control counts by group.
 \description{
 Tabulate outcome by study/platform to inclusion in forest plots. Input data should not include studies with zero counts when tabulating exposure/outcome/study.
 }
-\examples{
-get_counts_by_outcome(gxe, outcome, aspirin, study_gxe)
-}

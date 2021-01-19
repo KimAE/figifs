@@ -8,10 +8,10 @@ create_manhattanplot(
   x,
   exposure,
   stat,
-  df,
   annotation_file,
   output_dir,
-  filename_suffix = ""
+  filename_suffix = "",
+  sig_line = NA
 )
 }
 \arguments{
@@ -19,13 +19,13 @@ create_manhattanplot(
 
 \item{stat}{GxEScan results chi-square statistic}
 
-\item{df}{Degrees of freedom}
-
 \item{annotation_file}{File to be used for annotation. Should located in /media/work/tmp}
 
 \item{filename_suffix}{For convenience when you're creating test plots}
 
 \item{dat}{Input data}
+
+\item{df}{Degrees of freedom}
 }
 \value{
 Writes a .png file into location /media/work/gwis/posthoc/exposure
@@ -35,7 +35,6 @@ Function to create manhattanplot. Uses package EasyStrata - need to write 2 file
 }
 \details{
 NOTE: using hardcoded paths to store temporary results text files, and to read annotation file. Be careful!
-}
-\examples{
-create_manhattanplot(x, 'aspirin', c('sex', 'age'), 'chiSqGxE', df = 1, "_test")
+
+10/26/2020 - this might need further adjustment.. if subset analysis finds significant results, I need to output them into a data.frame
 }

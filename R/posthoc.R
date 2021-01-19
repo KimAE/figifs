@@ -226,32 +226,28 @@ fit_gxe_covars <- function(ds,
                            output_dir) {
   
   method <- match.arg(method)
-  # output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
   
-  # SNP information
-  snp_info <- unlist(strsplit(snp, split = "_"))
+  # we probably don't want to flip SNPs for each covariates set, so let's base direction on the first set (always the simpler model), in the interaction model. 
+  model_check <- glm(glue("outcome ~ {exposure}*{snp} + {glue_collapse(covariates_list[[1]], sep = '+')}"), family = 'binomial', data = ds)
   
-  # check allele frequency
-  total_dosage <- sum(ds[,snp])
-  total_alleles <- nrow(ds) * 2
-  aaf <- total_dosage / total_alleles
+  snp_old <- snp
+  snp_tmp <- strsplit(snp, split = "_")
+  chr <- snp_tmp[[1]][1]
+  bp <- snp_tmp[[1]][2]
+  a1 <- snp_tmp[[1]][3]
+  a2 <- snp_tmp[[1]][4]
   
-  # ---- recode SNPs so that major allele is the reference group
-  if(aaf >= 0.5) {
-    # flip dosages
-    ds[, snp] <- abs(ds[, paste0(snp)] - 2)
-    ds[, paste0(snp, '_dose')] <- abs(ds[, paste0(snp, '_dose')] - 2)
-    # assign ref/alt allele
-    ref_allele <- snp_info[4]
-    alt_allele <- snp_info[3]
+  if (model_check[[1]][snp] < 0) {
+    snp_new <- glue("{chr}_{bp}_{a2}_{a1}_flipped")
+    ds[[snp_new]] <- abs(2-ds[, snp_old])
+    ref_allele = a2
   } else {
-    ref_allele <- snp_info[3]
-    alt_allele <- snp_info[4]
+    snp_new <- snp
+    ref_allele = a1
   }
-
   
   # apply 'fit_gxe' over covariate_list
-  out <- lapply(covariates_list, function(x) fit_gxe(ds, exposure, snp, covariates = x))
+  out <- lapply(covariates_list, function(x) fit_gxe(ds, exposure, snp_new, covariates = x))
   
   # combine them to call stargazer
   list_of_glms <- lapply(out, function(x) x[[1]])
@@ -281,14 +277,12 @@ fit_gxe_covars <- function(ds,
   
   # save output html from stargazer
   out_html <- stargazer_helper(list_of_glms,
-                               title=paste0(gsub("\\_", "\\\\_", snp), " x ", gsub('\\_', '\\\\_', exposure)), 
+                               title=paste0(gsub("\\_", "\\\\_", snp_new), " x ", gsub('\\_', '\\\\_', exposure)), 
                                column.labels=col_label,
                                coef=coefs, 
                                notes=notes, single.row = T)
   
   # write object to html file
-  # cat(paste(out_html, collapse = "\n"), "\n", 
-  #     file = paste0(output_dir, "model_stargazer", "_", method, "_", snp, "_", exposure, "_", "covariate_sets.html"), append = F)
   cat(paste(out_html, collapse = "\n"), "\n", 
       file = paste0(output_dir, "gxe_", method, "_", snp, "_", exposure, "_covariate_sets.html"), append = F)
 }
@@ -509,10 +503,9 @@ pval_summary <- function(ds,
 #' @return
 #' @export
 #'
-#' @examples
 posthoc_input <- function(exposure, hrc_version, dosage_filename) {
   # exposure subset as determined by analysis plan
-  exposure_subset <- readRDS(paste0("/media/work/gwis/results/input/FIGI_", hrc_version , "_gxeset_", exposure, "_basic_covars_glm.rds"))[,'vcfid']
+  exposure_subset <- readRDS(paste0("/media/work/gwis/data/FIGI_EpiData/FIGI_", hrc_version , "_gxeset_", exposure, "_basic_covars_glm.rds"))[,'vcfid']
   
   # binary dosage output
   # geno <- readRDS(paste0("/media/work/gwis/posthoc/gwis_sig_results_output_", exposure, ".rds")) 
@@ -542,14 +535,284 @@ posthoc_input <- function(exposure, hrc_version, dosage_filename) {
   names(geno) <- snpname_clean2(names(geno))
   
   # dataset that contains all gxe samples and variables (not specific to any exposure)
-  out <- readRDS(paste0("/media/work/gwis/results/input/FIGI_", hrc_version, "_gxeset_analysis_data_glm.rds")) %>%
-    filter(vcfid %in% exposure_subset) %>% 
-    inner_join(geno_dose, 'vcfid') %>%
-    inner_join(geno, 'vcfid') %>% 
-    mutate(cancer_site_sum2 = factor(cancer_site_sum2, levels = c("proximal", "distal", "rectal")))
+  out <- readRDS(paste0("/media/work/gwis/data/FIGI_EpiData/FIGI_", hrc_version, "_gxeset_analysis_data_glm.rds")) %>%
+    dplyr::filter(vcfid %in% exposure_subset) %>% 
+    dplyr::inner_join(geno_dose, 'vcfid') %>%
+    dplyr::inner_join(geno, 'vcfid') %>% 
+    dplyr::mutate(cancer_site_sum2 = factor(cancer_site_sum2, levels = c("proximal", "distal", "rectal")))
   
   return(out)
   
 }
 
 
+
+
+
+
+
+
+
+#' posthoc_sig_wrapper
+#' 
+#' take significant results output data.frames, and format into a consistent set of columns. I use this for information regarding each SNP + (importantly) as input for binarydosage getSNP function
+#'
+#' @param filename 
+#'
+#' @return
+#' @export
+#'
+posthoc_sig_wrapper <- function(filename) {
+  
+  # check if data.frame is empty (no rows)
+  tmp <- readRDS(paste0("/media/work/gwis/posthoc/", exposure, "/", filename))
+  
+  if(is.null(dim(tmp)) | dim(tmp)[1] == 0) {
+    out <- data.frame()
+  } else {
+    if(grepl("twostep_wht", filename)) {
+      # if twostep finding, output step2p pvalue (GxE 1DF)
+      out <- tmp %>% 
+        dplyr::rename(Pval = step2p) %>% 
+        dplyr::select(SNP, Chromosome, Location, Reference, Alternate, Subjects, Cases, Pval) %>% 
+        mutate(method = gsub("significant_results_dataframe_|.rds", "", filename))
+    } else if(grepl("2df", filename)) {
+      # if 2df finding, output 2df statistic
+      out <- tmp %>%
+        dplyr::rename(Pval = Pval_2df) %>% 
+        dplyr::select(SNP, Chromosome, Location, Reference, Alternate, Subjects, Cases, Pval) %>% 
+        mutate(method = gsub("significant_results_dataframe_|.rds", "", filename))
+    } else if(grepl("3df", filename)) {
+      # if 3df finding, output 3df statistic
+      out <- tmp %>%
+        dplyr::rename(Pval = Pval_3df) %>% 
+        dplyr::select(SNP, Chromosome, Location, Reference, Alternate, Subjects, Cases, Pval) %>% 
+        mutate(method = gsub("significant_results_dataframe_|.rds", "", filename))
+    } else {
+      # otherwise - statistic (GxE 1df, case only - 'Pval')
+      out <- tmp %>% 
+        dplyr::select(SNP, Chromosome, Location, Reference, Alternate, Subjects, Cases, Pval) %>% 
+        mutate(method = gsub("significant_results_dataframe_|.rds", "", filename))
+    }
+  } 
+}
+
+
+
+
+
+
+#' reri_wrapper
+#' 
+#' create RERI output (need flextable to incorporate on rmarkdown report)
+#'
+#' @param x 
+#' @param snp 
+#' @param covariates 
+#'
+#' @return
+#' @export
+#'
+reri_wrapper <- function(x, exposure, snp, covariates, output_dir){
+  
+  # check if SNP has to be recoded
+  model_check <- glm(glue("outcome ~ {exposure}*{snp} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = x)
+  
+  
+  if (model_check[[1]][snp] < 0) {
+    snp_old <- snp
+    snp_tmp <- strsplit(snp, split = "_")
+    chr <- snp_tmp[[1]][1]
+    bp <- snp_tmp[[1]][2]
+    a1 <- snp_tmp[[1]][3]
+    a2 <- snp_tmp[[1]][4]
+    snp_new <- glue("{chr}_{bp}_{a2}_{a1}_flipped")
+    x[[snp_new]] <- abs(2-x[, snp_old])
+  } else {
+    snp_new <- snp
+  }
+  
+  model <- glm(glue("outcome ~ {exposure}*{snp_new} + {glue_collapse(covariates, sep = '+')}"), family = binomial(link = "logit"), data = x)
+  summary(model)
+  
+  
+  # calculate p value
+
+  ## (get coef positions..) 
+  coef_names <- names(coef(model))
+  coef_exposure <- grep(exposure, coef_names)[1]
+  coef_snp <- grep(snp_new, coef_names)[1]
+  coef_interaction <- grep(exposure, coef_names)[2]
+  
+  ## calculation
+  reri_est = epi.interaction(model = model, coef = c(coef_exposure,coef_snp,coef_interaction), param = 'product', type  = 'RERI', conf.level = 0.95)
+  coef_keep <- coef_names[c(coef_exposure, coef_snp, coef_interaction)]
+  cov.mat <- vcov(model)
+  V2 = cov.mat[coef_keep, coef_keep]
+  
+  reri_se = deltamethod( ~ exp(x1 + x2 + x3) - exp(x1) - exp(x2) + 1, 
+                         mean = c( coef(model)[coef_exposure], coef(model)[coef_snp], coef(model)[coef_interaction]), 
+                         cov = V2)
+  
+  reri_pval = format.pval(2*pnorm(-abs(reri_est[1, 1] / reri_se)), digits = 4)
+  
+  # output 
+  value = interactionR(model, exposure_names = c(exposure, snp_new), ci.type = "delta", ci.level = 0.95, em = F, recode = F)
+  out <- interactionR_table2(value, pvalue = reri_pval) # just save as RDS and use flextable to print in rmarkdown docs.. 
+  saveRDS(out, file = glue("{output_dir}reri_{exposure}_{snp}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
+}
+
+
+
+
+
+#' iplot_wrapper
+#'
+#' @param x 
+#' @param exposure 
+#' @param snp 
+#' @param covariates 
+#'
+#' @return
+#' @export
+#'
+iplot_wrapper <- function(x, exposure, snp, covariates, output_dir){
+  
+  # check if SNP has to be recoded (for consistency with RERI model)
+  model_check <- glm(glue("outcome ~ {exposure}*{snp} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = x)
+  
+  
+  if (model_check[[1]][snp] < 0) {
+    snp_old <- snp
+    snp_tmp <- strsplit(snp, split = "_")
+    chr <- snp_tmp[[1]][1]
+    bp <- snp_tmp[[1]][2]
+    a1 <- snp_tmp[[1]][3]
+    a2 <- snp_tmp[[1]][4]
+    snp_new <- glue("{chr}_{bp}_{a2}_{a1}_flipped")
+    x[[snp_new]] <- abs(2-x[, snp_old])
+  } else {
+    snp_new <- snp
+  }
+  
+
+  model <- glm(glue("outcome ~ {exposure}*{snp_new} + {glue_collapse(covariates, sep = '+')}"), family = binomial(link = "logit"), data = x)
+  # summary(model)
+  
+  png(glue("{output_dir}interaction_plot_{exposure}_{snp}_{glue_collapse(sort(covariates), sep = '_')}.png"), height = 720, width = 1280)
+  if (is.factor(x[,exposure])) {
+    print(interact_plot(model, modx = !! exposure , pred = !! snp_new, plot.points = F, interval = T, outcome.scale = 'link', y.label = 'predicted log odds') + theme(text = element_text(size = 26)))
+    # johnson_neyman(model, pred = folate_totqc2, modx = chr2_55255870_C_T, alpha = 0.05)
+  } else {
+    print(interact_plot(model, modx = !! exposure , pred = !! snp_new, plot.points = F, interval = T, modx.values = c(0,1,2,3), outcome.scale = 'link', y.label = 'predicted log odds') + theme(text = element_text(size = 26)))
+  }
+  dev.off()
+
+  # saveRDS(out, file = glue("{output_dir}reri_{exposure}_{snp}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
+}
+
+
+
+
+
+#' interactionR_table2
+#'
+#' @param obj 
+#' @param file_path 
+#'
+#' @return
+#' @export
+#'
+interactionR_table2 <- function (obj, pvalue, file_path = NA) 
+{
+  if (class(obj) != "interactionR") {
+    stop("Argument 'obj' must be an object of class 'interactionR',\n             use the interactionR() function to generate such object ")
+  }
+  beta1 <- obj$exp_names[1]
+  beta2 <- obj$exp_names[2]
+  em <- obj$analysis
+  d <- obj$dframe
+  d$Estimates <- as.character(round(d$Estimates, 2))
+  d$CI.ll <- as.character(round(d$CI.ll, 2))
+  d$CI.ul <- as.character(round(d$CI.ul, 2))
+  E1.absent <- paste(beta1, "absent", sep = " ")
+  E1.present <- paste(beta1, "present", sep = " ")
+  E2.absent <- paste(beta2, "absent", sep = " ")
+  E2.present <- paste(beta2, "present", sep = " ")
+  WithinStrataEffect1 <- paste("Effect of", beta2, "within the strata of", 
+                               beta1, sep = " ")
+  WithinStrataEffect2 <- paste("Effect of", beta1, "within the strata of", 
+                               beta2, sep = " ")
+  if (grepl("\\blog\\b", obj$call[3]) || grepl("poisson", obj$call[3])) {
+    effect_measure <- "RR [95% CI]"
+  }
+  else {
+    effect_measure <- "OR [95% CI]"
+  }
+  if (em) {
+    t <- data.frame(c(NA, NA, E1.absent, E1.present, "Multiplicative scale", 
+                      "RERI"), c(NA, effect_measure, NA, NA, NA, NA), c(NA, 
+                                                                        effect_measure, NA, NA, NA, NA), c(NA, effect_measure, 
+                                                                                                           NA, NA, NA, NA), stringsAsFactors = FALSE)
+    names(t) <- c("*", E2.absent, E2.present, WithinStrataEffect1)
+    t[3, 2] <- paste("1", "[Reference]", sep = " ")
+    t[3, 3] <- paste(d[2, 2], " [", d[2, 3], ", ", d[2, 4], 
+                     "]", sep = "")
+    t[3, 4] <- paste(d[5, 2], " [", d[5, 3], ", ", d[5, 4], 
+                     "]", sep = "")
+    t[4, 2] <- paste(d[3, 2], " [", d[3, 3], ", ", d[3, 4], 
+                     "]", sep = "")
+    t[4, 3] <- paste(d[4, 2], " [", d[4, 3], ", ", d[4, 4], 
+                     "]", sep = "")
+    t[4, 4] <- paste(d[6, 2], " [", d[6, 3], ", ", d[6, 4], 
+                     "]", sep = "")
+    t[5, 2] <- paste(d[7, 2], " [", d[7, 3], ", ", d[7, 4], 
+                     "]", sep = "")
+    t[6, 2] <- paste(d[8, 2], " [", d[8, 3], ", ", d[8, 4], 
+                     "]", sep = "")
+    t2 <- flextable(t)
+    t2 <- set_caption(t2, paste("Modification of the effect of", 
+                                beta1, "and", beta2, sep = " "))
+  }
+  else {
+    t <- data.frame(c(NA, NA, E1.absent, E1.present, WithinStrataEffect2, 
+                      "Multiplicative scale", "RERI", "AP", "SI"), c(NA, 
+                                                                     effect_measure, NA, NA, NA, NA, NA, NA, NA), c(NA, 
+                                                                                                                    effect_measure, NA, NA, NA, NA, NA, NA, NA), c(NA, 
+                                                                                                                                                                   effect_measure, NA, NA, NA, NA, NA, NA, NA), stringsAsFactors = FALSE)
+    names(t) <- c("*", E2.absent, E2.present, WithinStrataEffect1)
+    t[3, 2] <- paste("1", "[Reference]", sep = " ")
+    t[3, 3] <- paste(d[2, 2], " [", d[2, 3], ", ", d[2, 4], 
+                     "]", sep = "")
+    t[3, 4] <- paste(d[5, 2], " [", d[5, 3], ", ", d[5, 4], 
+                     "]", sep = "")
+    t[4, 2] <- paste(d[3, 2], " [", d[3, 3], ", ", d[3, 4], 
+                     "]", sep = "")
+    t[4, 3] <- paste(d[4, 2], " [", d[4, 3], ", ", d[4, 4], 
+                     "]", sep = "")
+    t[4, 4] <- paste(d[6, 2], " [", d[6, 3], ", ", d[6, 4], 
+                     "]", sep = "")
+    t[5, 2] <- paste(d[7, 2], " [", d[7, 3], ", ", d[7, 4], 
+                     "]", sep = "")
+    t[5, 3] <- paste(d[8, 2], " [", d[8, 3], ", ", d[8, 4], 
+                     "]", sep = "")
+    t[6, 2] <- paste(d[9, 2], " [", d[9, 3], ", ", d[9, 4], 
+                     "]", sep = "")
+    t[7, 2] <- paste(d[10, 2], " [", d[10, 3], ", ", d[10, 
+                                                       4], "]", sep = "")
+    t[8, 2] <- paste(d[11, 2], " [", d[11, 3], ", ", d[11, 
+                                                       4], "]", sep = "")
+    t[9, 2] <- paste(d[12, 2], " [", d[12, 3], ", ", d[12, 
+                                                       4], "]", sep = "")
+    t[7, 3] <- paste("p=", pvalue, sep = "")
+    t2 <- flextable(t)
+    t2 <- fontsize(t2, size = 15)
+    t2 <- fontsize(t2, size = 15, part = 'header')
+    t2 <- set_caption(t2, paste("Interaction of", beta1, 
+                                "and", beta2, sep = " "))
+  }
+  
+  print(t2)
+  invisible(t2)
+  
+}

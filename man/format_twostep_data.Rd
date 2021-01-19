@@ -21,6 +21,3 @@ A DATA.TABLE (!) - mainly because the code I copied pasted used a dt. Contains b
 \description{
 Function to format step 1 (arrange by p value) --- assume data is the gxe object from GxEScanR
 }
-\examples{
-format_data_twostep_data(gxe, 'chiSqG', 5, 0.05)
-}

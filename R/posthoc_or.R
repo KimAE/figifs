@@ -119,7 +119,6 @@ Model.all.new <- function(data,mod,env){
 #' @return
 #' @export
 #'
-#' @examples
 ORtab = function(x,elvl,glvl,res) {
   ORs = data.frame(matrix(NA,nrow=length(elvl),ncol=length(glvl)))
   colnames(ORs) = paste0('p',glvl)
@@ -145,7 +144,6 @@ ORtab = function(x,elvl,glvl,res) {
 #' @return
 #' @export
 #'
-#' @examples
 ptab = function(x,elvl,glvl,res) {
   pval = data.frame(matrix(NA,nrow=length(elvl),ncol=length(glvl)))
   colnames(pval) = paste0('p',glvl)
@@ -168,7 +166,6 @@ ptab = function(x,elvl,glvl,res) {
 #' @return
 #' @export
 #'
-#' @examples
 format_res <- function(res) {
   betas = colnames(res)[grep('beta',colnames(res),fixed=T)]
   ses = colnames(res)[grep('se',colnames(res),fixed=T)]
@@ -200,7 +197,6 @@ format_res <- function(res) {
 #' @return
 #' @export
 #'
-#' @examples
 rnd2 <- function(x) {
   round(x, 2)
 }
@@ -225,7 +221,6 @@ rnd2 <- function(x) {
 #' @return
 #' @export
 #'
-#' @examples
 Model.all.new.dosage <- function(data, mod, env) {
   if(length(table(data$p1))<=1 | length(table(data$p2))<=1 | var(2*data$p2+data$p1,na.rm=T)==0 | sum((data$p2+data$p1)>1.1,na.rm=T)>0) {
     res = NA
@@ -321,7 +316,7 @@ Model.all.new.dosage <- function(data, mod, env) {
 
 #' fit_stratified_or
 #' 
-#' create stratified odds ratios table (code written by yi)
+#' create stratified odds ratios table (Yi Lin)
 #'
 #' @param ds dataset
 #' @param exposure string; exposure variable
@@ -342,15 +337,37 @@ fit_stratified_or <- function(ds, exposure, snp, hrc_version, covariates, mod, d
   # output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
   
   # SNP information
+  # snp_info <- unlist(strsplit(snp, split = "_"))
+  # 
+  # # check allele frequency
+  # total_dosage <- sum(ds[,snp])
+  # total_alleles <- nrow(ds) * 2
+  # aaf <- total_dosage / total_alleles
+  # 
+  # # ---- recode SNPs so that major allele is the reference group
+  # if(aaf >= 0.5) {
+  #   # flip dosages
+  #   ds[, snp] <- abs(ds[, paste0(snp)] - 2)
+  #   ds[, paste0(snp, '_dose')] <- abs(ds[, paste0(snp, '_dose')] - 2)
+  #   # flip genotype probabilities
+  #   pp <- ds[,paste0(snp, "_p2")]
+  #   ds[,paste0(snp, "_p2")] <- ds[, paste0(snp, "_p0")]
+  #   ds[,paste0(snp, "_p0")] <- pp
+  #   # assign ref/alt allele
+  #   ref_allele <- snp_info[4]
+  #   alt_allele <- snp_info[3]
+  # } else {
+  #   ref_allele <- snp_info[3]
+  #   alt_allele <- snp_info[4]
+  # }
+
+  # SNP information
   snp_info <- unlist(strsplit(snp, split = "_"))
-  
-  # check allele frequency
-  total_dosage <- sum(ds[,snp])
-  total_alleles <- nrow(ds) * 2
-  aaf <- total_dosage / total_alleles
-  
-  # ---- recode SNPs so that major allele is the reference group
-  if(aaf >= 0.5) {
+
+  model_check <- glm(glue("outcome ~ {exposure}*{snp} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = ds)
+
+  # ---- recode SNPs so that lower risk allele is reference (to match RERI output)
+  if (model_check[[1]][snp] < 0) {
     # flip dosages
     ds[, snp] <- abs(ds[, paste0(snp)] - 2)
     ds[, paste0(snp, '_dose')] <- abs(ds[, paste0(snp, '_dose')] - 2)
@@ -536,7 +553,6 @@ fit_stratified_or <- function(ds, exposure, snp, hrc_version, covariates, mod, d
 #' @return
 #' @export
 #'
-#' @examples
 fit_stratified_or_q4 <- function(ds, exposure, snp, hrc_version, covariates, mod, dosage = F, output_dir) {
   # output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
   # snp_info <- unlist(strsplit(snp, split = "_"))
@@ -563,16 +579,49 @@ fit_stratified_or_q4 <- function(ds, exposure, snp, hrc_version, covariates, mod
   # output directory
   # output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
   
+  # # SNP information
+  # snp_info <- unlist(strsplit(snp, split = "_"))
+  # 
+  # # check allele frequency
+  # total_dosage <- sum(ds[,snp])
+  # total_alleles <- nrow(ds) * 2
+  # aaf <- total_dosage / total_alleles
+  # 
+  # # ---- recode SNPs so that major allele is the reference group
+  # if(aaf >= 0.5) {
+  #   # flip dosages
+  #   ds[, snp] <- abs(ds[, paste0(snp)] - 2)
+  #   ds[, paste0(snp, '_dose')] <- abs(ds[, paste0(snp, '_dose')] - 2)
+  #   # flip genotype probabilities
+  #   pp <- ds[,paste0(snp, "_p2")]
+  #   ds[,paste0(snp, "_p2")] <- ds[, paste0(snp, "_p0")]
+  #   ds[,paste0(snp, "_p0")] <- pp
+  #   # assign ref/alt allele
+  #   ref_allele <- snp_info[4]
+  #   alt_allele <- snp_info[3]
+  # } else {
+  #   ref_allele <- snp_info[3]
+  #   alt_allele <- snp_info[4]
+  # }
+  # 
+  # # create data subset
+  # tmp1 = ds[, c('outcome', exposure, covariates)]
+  # # tmp2 = ds[, grepl(snp, names(ds))]
+  # tmp2 = ds[, grepl(paste(paste0(snp, c("_dose", "_p0", "_p1", "_p2")), collapse = "|"), names(ds))]
+  # names(tmp2) <- c("dosage", "p0", "p1", "p2")
+  # 
+  # ds_tmp = cbind(tmp1, tmp2) %>% 
+  #   na.omit(.[, c(exposure,'outcome', covariates, 'p1','p2','dosage')])
+  
+  
+  
   # SNP information
   snp_info <- unlist(strsplit(snp, split = "_"))
   
-  # check allele frequency
-  total_dosage <- sum(ds[,snp])
-  total_alleles <- nrow(ds) * 2
-  aaf <- total_dosage / total_alleles
+  model_check <- glm(glue("outcome ~ {exposure}*{snp} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = ds)
   
-  # ---- recode SNPs so that major allele is the reference group
-  if(aaf >= 0.5) {
+  # ---- recode SNPs so that lower risk allele is reference (to match RERI output)
+  if (model_check[[1]][snp] < 0) {
     # flip dosages
     ds[, snp] <- abs(ds[, paste0(snp)] - 2)
     ds[, paste0(snp, '_dose')] <- abs(ds[, paste0(snp, '_dose')] - 2)
@@ -588,6 +637,7 @@ fit_stratified_or_q4 <- function(ds, exposure, snp, hrc_version, covariates, mod
     alt_allele <- snp_info[4]
   }
   
+  
   # create data subset
   tmp1 = ds[, c('outcome', exposure, covariates)]
   # tmp2 = ds[, grepl(snp, names(ds))]
@@ -598,12 +648,7 @@ fit_stratified_or_q4 <- function(ds, exposure, snp, hrc_version, covariates, mod
     na.omit(.[, c(exposure,'outcome', covariates, 'p1','p2','dosage')])
   
   
-  
-  
-  
-  
   # start here.... #
-  
   exposure_levels <- seq(1,4)
   res.pool.un = res.pool.g = res.pool.e = NULL
   Ncaco = data.frame(snps=snp,matrix(NA,ncol=6*4))
@@ -628,7 +673,7 @@ fit_stratified_or_q4 <- function(ds, exposure, snp, hrc_version, covariates, mod
   
   
   #-- Fit unrestricted model --------
-  ds_tmp[,exposure] = factor(ds_tmp[,exposure])
+  ds_tmp[,exposure] = factor(ds_tmp[,exposure]) # modeling q4 as factors
   tmp = as.vector(Model.all.new(ds_tmp,mod,exposure))
   res.pool.un = rbind(res.pool.un,data.frame(snp,exposure,t(tmp$GE)))
   res.pool.e = rbind(res.pool.e,data.frame(snp,exposure,t(tmp$E)))

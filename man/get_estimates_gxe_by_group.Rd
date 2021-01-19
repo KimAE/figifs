@@ -25,6 +25,3 @@ Tibble with GLM estimates/se/stats/pval/95%CI by group
 \description{
 Function to get GLM estimates by group (e.g. study_gxe). Make sure data is properly formatted yeah (maybe add info on what that means exactly..). This is an alternate version that returns the gxe term in the summary table
 }
-\examples{
-run_glm_gxe_by_group(gxe, outcome, asp_ref, study_gxe, X5.40252294, age_ref_imp, sex, PC1, PC2, PC3)
-}
