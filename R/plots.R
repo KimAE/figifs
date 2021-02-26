@@ -415,7 +415,7 @@ plot_twostep <- function(x, exposure, covars, binsToPlot, stats_step1, sizeBin0,
 #' @return
 #' @export
 #'
-create_qqplot_ramwas <- function(x, stat, df, filename_suffix = "", output_dir) {
+create_qqplot_ramwas <- function(x, exposure, stat, df, filename_suffix = "", output_dir) {
   
   # calculate p value
   # pvals <- pchisq(x[, stat], df = df, lower.tail = F)
@@ -560,19 +560,45 @@ qqPlotFast_figifs <- function (x, ntests = NULL, ismlog10 = FALSE, ci.level = 0.
 #' @examples
 create_manhattanplot_ramwas <- function(x, exposure, stat, annotation_file, output_dir, filename_suffix = "", sig_line = 5e-8) {
   
-  pvals <- as.numeric(gxe$chiSqG_p)
-  chr <- as.character(sort(as.numeric(gxe$Chromosome)))
-  chr <- as.factor(gxe$Chromosome)
-  pos <- as.numeric(gxe$Location)
+  
+  if (!is.na(sig_line)) {
+    sig_line_label = formatC(sig_line, format = "e", digits = 2)
+  }
+  
+  x.tmp1 <- x %>% 
+    dplyr::mutate(P = .data[[glue(stat, "_p")]])
+  
+  # calculate p value and filter
+  if (!is.na(sig_line)) {
+    x.tmp2 <- x.tmp1 %>% 
+      dplyr::filter(!(P > sig_line))
+  } else {
+    if (stat == "chiSqGxE") {
+      x.tmp2 <- x.tmp1 %>% 
+        dplyr::filter(!(P > 5e-6))
+    } else {
+      x.tmp2 <- x.tmp1 %>% 
+        dplyr::filter(!(P > 5e-8))
+    }
+  }
+  
+  # output data.frame of significant results
+  saveRDS(x.tmp2 , file = glue("{output_dir}manhattan_{stat}_{exposure}{filename_suffix}_df.rds"))
+  
+  # remove missing
+  tmp <- x %>% 
+    dplyr::filter(!is.na(.data[[paste0(stat, "_p")]]))
+  
+  pvals <- as.numeric(tmp[, paste0(stat, "_p")])
+  chr <- as.factor(tmp$Chromosome)
+  pos <- as.numeric(tmp$Location)
   
   xx  <- manPlotPrepare(pvalues = pvals, 
                         chr = chr, 
                         pos = pos)
   
-  png(paste0("~/Dropbox/wtf.png"), height = 720, width = 1280)
+  png(paste0(output_dir, "manhattan_", stat, "_", exposure, filename_suffix, ".png"), height = 720, width = 1280)
   manPlotFast(xx)
-  abline(h = -log10(5e-8), col = 'red')
+  abline(h = -log10(sig_line), col = 'red')
   dev.off()
-  
-  
 }

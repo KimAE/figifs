@@ -170,7 +170,6 @@ meff_r <- function(dat, PCA_cutoff = 0.995, fixLength = 150) {
 #'
 #' @return
 #' @export
-#'
 format_data_twostep_expectation_hybrid <- function(dat, stats_step1, sizeBin0, alpha) {
   
   # function to calculate p values from chisq stats
@@ -453,7 +452,7 @@ data_twostep_eh <- function(dat, stats_step1, sizeBin0 = 5) {
 #' @export
 #'
 simplem_wrap <- function(x, exposure, covariates, simplem_step1_statistic, output_dir, filename_suffix = "") {
-  files_input <- mixedsort(list.files(paste0(output_dir, "expectation_hybrid"), pattern = paste0(paste0("twostep_", simplem_step1_statistic, "_bin"), "(?:.+)", "output.rds"), full.names = T))
+  files_input <- mixedsort(list.files(glue("/media/work/gwis/twostep_expectation_hybrid/{exposure}"), pattern = paste0(paste0("twostep_", simplem_step1_statistic, "_bin"), "(?:.+)", "output.rds"), full.names = T))
   files_list <- map(files_input, ~ readRDS(.x))
   number_of_snps <- map_int(files_list, ~ ncol(.x)) - 1 # -1 to remove vcfid column 
   number_of_tests <- map_int(files_list, ~ meff_r(dat = .x, PCA_cutoff = 0.995, fixLength = 150))
@@ -491,12 +490,10 @@ simplem_wrap <- function(x, exposure, covariates, simplem_step1_statistic, outpu
 #' @export
 #'
 simplem_wrap <- function(x, exposure, covariates, simplem_step1_statistic, output_dir, filename_suffix = "", include_gwas=T) {
-  files_input <- mixedsort(list.files(paste0(output_dir, "expectation_hybrid"), pattern = paste0(paste0("twostep_", simplem_step1_statistic, "_bin"), "(?:.+)", "output.rds"), full.names = T))
+  files_input <- mixedsort(list.files(glue("/media/work/gwis/twostep_expectation_hybrid/{exposure}"), pattern = paste0(paste0("twostep_", simplem_step1_statistic, "_bin"), "(?:.+)", "output.rds"), full.names = T))
   files_list <- map(files_input, ~ readRDS(.x))
   
   
-  #----- delete if you f* it up -----#
-  #
   exclude_gwas_snps <- fread("~/data/Annotations/gwas_141_ld_annotation_july2020.txt") %>% 
     mutate(snps = paste0("X", Chr, ".", Pos )) %>% 
     pull(snps)
@@ -511,8 +508,7 @@ simplem_wrap <- function(x, exposure, covariates, simplem_step1_statistic, outpu
   if(include_gwas==F) {
     files_list <- map(files_list, ~ tmp_function(.x))
   }
-  #
-  #----- delete if you f* it up -----#
+
   
   
   number_of_snps <- map_int(files_list, ~ ncol(.x)) - 1 # -1 to remove vcfid column 
