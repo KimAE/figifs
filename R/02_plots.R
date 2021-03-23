@@ -328,6 +328,13 @@ create_qqplot_ramwas <- function(data, exposure, statistic, hrc_version, path, f
 create_manhattanplot_ramwas <- function(data, exposure, statistic, hrc_version, path, filename_suffix = "", sig_line = 5e-8, gwas_snps = NULL) {
 
     # output data.frame of significant results
+  
+    if(statistic == 'chiSqGxE') {
+      sig_line = 5e-6
+    }  else {
+      sig_line = sig_line
+    }
+  
     data_df <- data %>%
 	{if (!is.null(gwas_snps)) dplyr::filter(., !SNP2 %in% gwas_snps) else . } %>%
 	dplyr::filter(.data[[glue(statistic, "_p")]] <= sig_line)
