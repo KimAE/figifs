@@ -1,0 +1,1131 @@
+#=============================================================================#
+# functions to create results plots
+#=============================================================================#
+
+
+
+
+# -------- create descriptive analysis output -------- #
+
+get_counts_outcome_by_group <- function(dat, outcome, group) {
+
+    # get counts for rmeta function
+    dat <- dat %>%
+	dplyr::group_by( .data[[outcome]], .data[[group]] ) %>%
+	dplyr::summarize(count = dplyr::n()) %>%
+	tidyr::spread(key = {{ outcome }}, value = count) %>%
+	dplyr::rename(Control = `0`, Case = `1`) %>%
+	dplyr::mutate(N = Control + Case)
+    return(dat)
+}
+
+
+# meta analyses
+
+create_forest_plot <- function(exposure, covariates, hrc_version, path, forest_height = 17, forest_width = 8.5, funnel_height = 8, funnel_width = 8.5, strata = 'all') {
+
+    # prepare dataset
+    # note the location of these files. They're input files I created before running scans
+    exposure_subset <- readRDS(glue("data/FIGI_{hrc_version}_gxeset_{exposure}_basic_covars_glm.rds")) %>% 
+	dplyr::pull(vcfid)
+
+    glm_dat <- readRDS(glue("/project/dconti_250/FIGI_EpiData/FIGI_{hrc_version}_gxeset_analysis_data_glm.rds")) %>% 
+	dplyr::filter(vcfid%in% exposure_subset)
+
+    # stratified meta-analysis plots
+    # make sure study_gxe is not in the covariates vector
+    covariates <- covariates[which(covariates != 'study_gxe')]
+
+    if (strata == 'female') {
+	# subset_vector <- glm_dat$sex == 0
+	glm_dat <- dplyr::filter(glm_dat, sex == 0)
+	covariates <- covariates[which(!covariates %in% c('sex'))]
+    } else if (strata == 'male') {
+	glm_dat <- dplyr::filter(glm_dat, sex == 1)
+	# subset_vector <- glm_dat$sex == 1
+	covariates <- covariates[which(!covariates %in% c('sex'))]
+    } else if (strata == 'proximal') {
+	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'proximal' | glm_dat$outcome == 0)
+	# subset_vector <- glm_dat$cancer_site_sum2 == 'proximal' | glm_dat$outcome == 0 
+    } else if (strata == 'distal') {
+	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'distal' | glm_dat$outcome == 0)
+	# subset_vector <- glm_dat$cancer_site_sum2 == 'distal' | glm_dat$outcome == 0 
+    } else if (strata == 'rectal') { 
+	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'rectal' | glm_dat$outcome == 0)
+	# subset_vector <- glm_dat$cancer_site_sum2 == 'rectal' | glm_dat$outcome == 0 
+    }
+
+    # some subsets generate empty cells, need to remove them
+    drops <- data.frame(table(glm_dat$study_gxe, glm_dat$outcome, glm_dat[, exposure])) %>% 
+	dplyr::filter(Freq == 0) %>% 
+	dplyr::pull(Var1) %>% 
+	unique(.)
+
+    glm_dat <- glm_dat %>% 
+	dplyr::filter(!study_gxe %in% drops)
+
+    # create model term
+    # model_formula <- Reduce(paste, deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome')))
+    model_formula <- deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome'))
+
+    # create study_design data.frame
+    study_design <- glm_dat %>%
+	dplyr::select(study_gxe, study_design) %>%
+	filter(!duplicated(.)) %>%
+	arrange(study_gxe)
+
+    glm_out <- glm_dat %>%
+	tidyr::nest(data = -study_gxe) %>% 
+	dplyr::mutate(
+	    fit = purrr::map(data, ~ glm(model_formula, data = .x, family = 'binomial')),
+	    tidied = purrr::map(fit, ~ tidy(.x)), 
+	    quality = purrr::map(fit, ~ glance(.x))
+	    ) %>% 
+	dplyr::select(-data, -fit) %>% 
+	tidyr::unnest(tidied) %>% tidyr::unnest(quality) %>% 
+	dplyr::filter(grepl(exposure, term),
+	    null.deviance > quantile(null.deviance, 0.01)) %>% 
+	dplyr::arrange(study_gxe)
+
+    # include study sample sizes and study design information
+    meta_input <- get_counts_outcome_by_group(glm_dat, 'outcome', 'study_gxe') %>%
+	mutate(study_gxe = as.character(study_gxe)) %>% 
+	full_join(study_design, 'study_gxe') %>% 
+	inner_join(glm_out, 'study_gxe')
+
+    results_meta <- meta::metagen(estimate,
+	std.error,
+	data=meta_input,
+	studlab=paste(study_gxe),
+	comb.fixed = FALSE,
+	comb.random = TRUE,
+	method.tau = "SJ",
+	hakn = TRUE,
+	prediction=TRUE,
+	sm="OR",
+	byvar = study_design)
+
+    # plot_title = glue(strata, "\n{model_formula}", .na = "All")
+    plot_title = glue(strata, " (N=", sum(glm_out$nobs), ")", "\n{model_formula}")
+
+    png(glue("{path}/forest_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"), height = forest_height, width = forest_width, units = 'in', res = 150)
+    meta::forest(results_meta,
+	layout = "JAMA",
+	# text.predict = "95% CI",
+	# col.predict = "black",
+	leftcols = c("studlab", "Control", "Case", "N", "effect", "ci", "w.random"),
+	digits.addcols=0,
+	study.results=T,
+	prediction = F,
+	col.random = 'red', 
+	xlim = c(0.25, 4))
+    grid.text(plot_title, 0.5, .98, gp=gpar(cex=1))
+    dev.off()
+
+    png(glue("{path}/funnel_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"), height = funnel_height, width = funnel_width, units = 'in', res = 150)
+    meta::funnel(results_meta, sm="OR", studlab = T, pos = 4, col.random = 'red')
+    dev.off()
+
+    #return(glue("{path}/forest_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"))
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#' qq_ramwas_edit
+#' 
+#' I modified the ramwas qq function to include lambda1000 estimates in the output
+#'
+#' @param x 
+#' @param ntests 
+#' @param ismlog10 
+#' @param ci.level 
+#' @param ylim 
+#' @param newplot 
+#' @param col 
+#' @param cex 
+#' @param yaxmax 
+#' @param lwd 
+#' @param axistep 
+#' @param col.band 
+#' @param makelegend 
+#' @param lambda1000 
+#' @param xlab 
+#' @param ylab 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+qq_ramwas_edit <- function(x, ntests = NULL, ismlog10 = FALSE, ci.level = 0.05,
+    ylim = NULL, newplot = TRUE, col = "#D94D4C", cex = 0.5,
+    yaxmax = NULL, lwd = 3, axistep = 2, col.band = "#ECA538",
+    makelegend = TRUE, lambda1000,
+    xlab = expression(paste("–", " log"[10] * "(", italic("P"), "), null")), 
+    ylab = expression(paste("–", " log"[10] * "(", italic("P"), "), observed"))) {
+
+    if (methods::is(x, "qqPlotInfo")) {
+	qq = x
+    }
+    else {
+	qq = qqPlotPrepare(pvalues = x, ntests = ntests, ismlog10 = ismlog10)
+    }
+    mx = head(qq$xpvs, 1) * 1.05
+    if (is.null(ylim)) {
+	my = max(mx, head(qq$ypvs, 1) * 1.05)
+	ylim = c(0, my)
+    }
+    else {
+	my = ylim[2]
+    }
+    if (is.null(yaxmax))
+	yaxmax = floor(my)
+    if (newplot) {
+	plot(x = NA, y = NA, ylim = ylim, xlim = c(0, mx), xaxs = "i",
+	    yaxs = "i", xlab = xlab, ylab = ylab, axes = FALSE)
+	axis(1, seq(0, mx + axistep, axistep), lwd = lwd)
+	axis(2, seq(0, yaxmax, axistep), lwd = lwd)
+    }
+    abline(a = 0, b = 1, col = "grey", lwd = lwd)
+    points(qq$xpvs, qq$ypvs, col = col, cex = cex, pch = 19)
+    if (!is.null(ci.level)) {
+	if ((ci.level > 0) & (ci.level < 1)) {
+	    quantiles = qbeta(p = rep(c(ci.level/2, 1 - ci.level/2),
+		    each = length(qq$xpvs)), shape1 = qq$keep, shape2 = qq$ntests -
+		qq$keep + 1)
+	    quantiles = matrix(quantiles, ncol = 2)
+	    lines(qq$xpvs, -log10(quantiles[, 1]), col = col.band,
+		lwd = lwd)
+	    lines(qq$xpvs, -log10(quantiles[, 2]), col = col.band,
+		lwd = lwd)
+	}
+    }
+    if (makelegend) {
+	if (!is.null(ci.level)) {
+	    legend("topleft", legend = c(expression(paste(italic("P"),
+			    " value")), sprintf("%.0f%% CI", 100 - ci.level *
+			100)), lwd = c(0, lwd), pch = c(19, NA_integer_),
+		lty = c(0, 1), col = c(col, col.band), box.col = "transparent",
+		bg = "transparent")
+	}
+	else {
+	    legend("topleft", legend = expression(paste(italic("P"),
+			" value")), lwd = 0, pch = 19, lty = 0, col = col,
+		box.col = "transparent", bg = "transparent")
+	}
+    }
+    if (!is.null(qq$lambda)) {
+	lastr = sprintf("%.3f", qq$lambda)
+	# legend("bottom", legend = bquote(lambda == .(lastr)), bty = "n")
+	legend("bottom", legend = bquote(lambda == .(lastr) ~~ lambda[1000] == .(lambda1000)), bty = "n")
+    }
+    return(invisible(qq))
+}
+
+
+
+
+
+#' create_qqplot_ramwas
+#' 
+#' create qq plots using package ramwas
+#'
+#' @param data Processed GxEScanR output
+#' @param exposure string
+#' @param statistic string
+#' @param hrc_version string
+#' @param path string
+#' @param filename_suffix string - not used but there just in case I modify the code
+#'
+#' @return
+#' @export
+#'
+#' @examples
+create_qqplot_ramwas <- function(data, exposure, statistic, hrc_version, path, filename_suffix = "") {
+
+    # df
+    if (statistic == 'chiSq2df') {
+	df = 2
+    } else if(statistic == 'chiSq3df') {
+	df = 3
+    } else {
+	df = 1
+    }
+
+    ## get pvalue
+    pvals <- data %>%
+	dplyr::filter(!is.na(.data[[glue(statistic, "_p")]])) %>%
+	dplyr::pull(.data[[glue(statistic, "_p")]])
+
+    ## calculate lambda
+    lambda <- round( (median(qchisq(1-pvals, df)) / qchisq(0.5, df)), 4)
+
+    ## calculate lambda1000
+    if (statistic %in% c("chiSqControl", "chiSqCase")) {
+	lambda1000 <- "NA"
+    } else {
+	cases <- unique(data[, 'Cases'])
+	controls <- unique(data[, 'Subjects']) - unique(data[, 'Cases'])
+	total <- cases + controls
+	cases1000 <- (cases/total) * 1000
+	controls1000 <- (controls/total) * 1000
+	lambda1000 <- 1 + (lambda - 1) * ( (1/cases + 1/controls) / (1/(2*cases1000) + 1/(2*controls1000)))
+	lambda1000 <- sprintf("%.3f", lambda1000)
+    }
+
+    # call modified qq_ramwas function
+    png(glue("{path}/qq_{exposure}_{hrc_version}_{statistic}.png"), height = 720, width = 1280)
+    qq_ramwas_edit(pvals, lambda1000 = lambda1000)
+    dev.off()
+
+    # return image file to targets workflow
+    return(glue("{path}/qq_{exposure}_{hrc_version}_{statistic}.png"))
+}
+
+
+
+
+
+
+
+#' create_manhattanplot_ramwas
+#' 
+#' much simpler to use than EasyStrata, especially when recreating plots 
+#'
+#' @param data Processed GxEScanR output
+#' @param exposure string
+#' @param statistic string
+#' @param hrc_version string
+#' @param path string
+#' @param filename_suffix string 
+#' @param sig_line numeric
+#' @param gwas_snps vector of GWAS SNPs
+#'
+#' @return
+#' @export
+#'
+#' @examples
+create_manhattanplot_ramwas <- function(data, exposure, statistic, hrc_version, path, filename_suffix = "", sig_line = 5e-8, gwas_snps = NULL) {
+
+    # output data.frame of significant results
+    data_df <- data %>%
+	{if (!is.null(gwas_snps)) dplyr::filter(., !SNP2 %in% gwas_snps) else . } %>%
+	dplyr::filter(.data[[glue(statistic, "_p")]] <= sig_line)
+
+    if (!is.null(gwas_snps)) {
+	saveRDS(data_df , file = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}_no_gwas_df.rds"))
+    } else {
+	saveRDS(data_df , file = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}_df.rds"))
+    }
+
+    # remove missing stats (causes problems otherwise)
+    data_man <- data %>%
+	{if (!is.null(gwas_snps)) dplyr::filter(., !SNP2 %in% gwas_snps) else . } %>%
+	dplyr::filter(!is.na(.data[[glue(statistic, "_p")]]))
+
+    # run ramwas 
+    pvals <- as.numeric(data_man[, glue(statistic, "_p")])
+    chr <- as.factor(data_man$Chromosome)
+    pos <- as.numeric(data_man$Location)
+
+    man_prep  <- manPlotPrepare(pvalues = pvals, 
+	chr = chr, 
+	pos = pos)
+
+    if (!is.null(gwas_snps)) {
+	filename = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}_no_gwas.png")
+	png(filename, height = 720, width = 1280)
+    } else {
+	filename = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}.png")
+	png(filename, height = 720, width = 1280)
+    }
+    manPlotFast(man_prep)
+    abline(h = -log10(sig_line), col = 'red')
+    dev.off()
+
+    return(filename)
+}
+
+
+
+
+
+
+
+
+#' output_expectation_bin_snps
+#' 
+#' for creating two-step plots that use expectation based binning. outputs vector of SNPs in each bin, for each step 1 filtering statistic we used (chiSqG, chiSqGE, chiSqEDGE)
+#' important to note that expectation based binning assumes a total of 1000000 tests to calculate step1 p-value thresholds
+#' 
+#' @param data Processed GxESranR output
+#' @param exposure string
+#' @param hrc_version string
+#' @param stats_step1 string
+#' @param step1_source string - figi or gecco 
+#' @param path string
+#' @param bin numeric. targets workflow runs this with bins 1:7
+#' @param sizeBin0 numeric
+#'
+#' @return
+#' @export
+#'
+#' @examples
+output_expectation_bin_snps <- function(data, exposure, hrc_version, stats_step1, step1_source = "figi", path, bin, sizeBin0 = 5) {
+
+    # ---- create bin numbers based on step1 statistic ---- #
+    # expectation assumption (1 million tests)
+    m = 1000000
+    # (fyi number of bins equal 18 with one million tests)
+    nbins = floor(log2(m/sizeBin0 + 1))
+    nbins = if (m > sizeBin0 * 2^nbins) {nbins = nbins + 1}
+    sizeBin = c(sizeBin0 * 2^(0:(nbins-2)), sizeBin0 * (2^(nbins-1)) )
+    sizeBin_endpt = cumsum(sizeBin)
+
+    # step 1 bin p value cutoffs (see expectation based slides)
+    alphaBin_step1 = sizeBin_endpt/1000000
+    alphaBin_step1_cut <- c(-Inf, alphaBin_step1, Inf)
+
+    # create data.frame with expectation based partition assignment
+    out <- data %>% 
+	dplyr::mutate(bin_number = as.numeric(cut(.data[[glue(stats_step1, "_p")]], breaks = alphaBin_step1_cut))) %>% 
+	dplyr::filter(bin_number == bin) %>% 
+	dplyr::arrange(.data[[glue(stats_step1, "_p")]]) %>% 
+	pull(SNP)
+
+    # create output directory.. (specific to workflow)
+    dir.create(file.path(glue("{path}/expectation_bin_dosages")), showWarnings = F)
+
+    if(step1_source == "gecco") {
+	filename = glue("{path}/expectation_bin_dosages/expectation_based_snplist_{exposure}_{hrc_version}_{stats_step1}_gecco_bin{bin}.rds")
+	saveRDS(out, file = filename)
+    } else {
+	filename = glue("{path}/expectation_bin_dosages/expectation_based_snplist_{exposure}_{hrc_version}_{stats_step1}_bin{bin}.rds")
+	saveRDS(out, file = filename)
+    }
+
+    return(filename)
+}
+
+
+
+
+
+#' create_twostep_plot
+#' 
+#' original function to create two-step plots using WHT
+#'
+#' @param data Processed GxEScanR output
+#' @param exposure string
+#' @param covars vector
+#' @param binsToPlot numeric - typically set to 7 or 8
+#' @param stats_step1 string
+#' @param sizeBin0 numeric - typically 5
+#' @param alpha numeric - overall alpha, typically 0.05
+#' @param path string
+#' @param filename_suffix string - currently not in use
+#'
+#' @return
+#' @export
+#'
+#' @examples
+create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1, sizeBin0, alpha, path, filename_suffix = "") {
+
+    # ------- Functions ------- #
+    # plot title and file name
+    write_twostep_weightedHT_plot_title <- function(statistic, exposure, covars, total) {
+	gxescan_tests <- c(paste0("D|G 2-step Procedure Results (N = ", total, ")\noutc ~ G+", paste0(covars, collapse = "+"),"+", exposure),
+	    paste0("G|E 2-step Procedure Results (N = ", total, ")\nG ~ ", exposure, "+", paste0(covars, collapse = "+")),
+	    paste0("EDGE 2-step Procedure Results (N = ", total, ")\nchiSqG + chiSqGE"))
+	names(gxescan_tests) <- c("chiSqG", "chiSqGE", "chiSqEDGE")
+	return(gxescan_tests[statistic])
+    }
+
+    ## add mapinfo so that points in plot reflect chromosome/location on x-axis
+    create_mapinfo <- function(x) {
+	x %>% 
+	    arrange(Chromosome, Location) %>% 
+	    mutate(mapinfo = seq(unique(bin_number) - 1 + 0.1, unique(bin_number) - 1 + 0.9, length.out = nrow(.)))
+    }
+
+    # ------- create working dataset ------- #
+    # assign SNPs to bins
+    m = nrow(data) 
+    nbins = floor(log2(m/sizeBin0 + 1)) 
+    nbins = if (m > sizeBin0 * 2^nbins) {nbins = nbins + 1} 
+    sizeBin = c(sizeBin0 * 2^(0:(nbins-2)), m - sizeBin0 * (2^(nbins-1) - 1) ) 
+    endpointsBin = cumsum(sizeBin)
+
+    rk.pv <- c(1:m)
+    grp <- ceiling(log(rk.pv/sizeBin0+1,base=2))
+
+    rep_helper <- c(table(grp))
+    alphaBin = alpha * 2 ^ -(1:nbins) / sizeBin 
+    alphaBin_dat <- rep(alphaBin, rep_helper)
+
+    # prep data
+    tmp <- data %>% 
+	dplyr::mutate(step1p = .data[[paste0(stats_step1, "_p")]],
+	    step2p = chiSqGxE_p) %>% 
+    dplyr::arrange(step1p) %>% 
+    dplyr::mutate(bin_number = as.numeric(grp), 
+	step2p_sig = as.numeric(alphaBin_dat), 
+	log_step2p_sig = -log10(step2p_sig), 
+	log_step2p = -log10(step2p))
+
+    significant_hits <- filter(tmp, step2p < step2p_sig)
+
+    # output list of bins for plotting
+    tmp_plot <- tmp %>% 
+	arrange(Chromosome, Location) %>% 
+	group_by(bin_number) %>% 
+	group_split()
+
+    # add mapinfo (see functions)
+    tmp_plot <- map(tmp_plot, create_mapinfo)
+
+    cases <- unique(tmp[, 'Cases'])
+    controls <- unique(tmp[, 'Subjects']) - unique(tmp[, 'Cases'])
+    total <- cases + controls
+    logp_plot_limit = 12
+    last.sig = alphaBin[binsToPlot]
+
+    # plots
+    png(glue("{path}/twostep_{exposure}_{hrc_version}_{stats_step1}.png"), height = 720, width = 1280)
+    color <- rep(c("#377EB8","#4DAF4A"),100)
+    par(mar=c(6, 7, 6, 3))
+
+    bin_to_plot = tmp_plot[[1]]
+    plot(pull(bin_to_plot, mapinfo), pull(bin_to_plot, log_step2p),
+	col = ifelse(pull(bin_to_plot, SNP) %in% significant_hits[, 'SNP'], '#E41A1C','#377EB8'),
+	pch = ifelse(pull(bin_to_plot, SNP) %in% significant_hits[, 'SNP'], 19, 20),
+	cex = ifelse(pull(bin_to_plot, SNP) %in% significant_hits[, 'SNP'], 1.3, 1.7),
+	xlab="Bin number for step1 p value",
+	ylab="-log10(step2 chiSqGxE p value)",
+	xlim=c(0, binsToPlot),
+	ylim=c(0, logp_plot_limit),
+	axes=F,
+	cex.main = 1.7,
+	cex.axis = 1.7,
+	cex.lab = 1.7,
+	cex.sub = 1.7)
+    lines(pull(bin_to_plot, mapinfo), pull(bin_to_plot, log_step2p_sig), col = "black", lwd=1)
+
+    # remaining bins
+    for(i in 2:binsToPlot) {
+	bin_to_plot = tmp_plot[[i]]
+	points(pull(bin_to_plot, mapinfo), pull(bin_to_plot, log_step2p),
+	    col = ifelse(pull(bin_to_plot, SNP) %in% significant_hits$SNP, '#E41A1C', color[i]),
+	    pch = ifelse(pull(bin_to_plot, SNP) %in% significant_hits$SNP, 19, 20),
+	    cex = ifelse(pull(bin_to_plot, SNP) %in% significant_hits$SNP, 1.3, 1.7),
+	    cex.main = 1.7,
+	    cex.axis = 1.7,
+	    cex.lab = 1.7,
+	    cex.sub = 1.7)
+	lines(pull(bin_to_plot, mapinfo), pull(bin_to_plot, log_step2p_sig),
+	    col = "black",lwd = 1)
+    }
+
+    axis(1, at = c(-1.5, seq(0.5, binsToPlot-0.2, 1)), label = c(0, seq(1, binsToPlot, 1)), cex.axis = 1.7)
+    axis(2, at = c(0:floor(logp_plot_limit)), label = c(0:logp_plot_limit), cex.axis=1.7)
+    title(main = write_twostep_weightedHT_plot_title(stats_step1, exposure, covars, total), sub = "iBin Size = 5, alpha = 0.05", cex.main = 2, cex.sub = 1.7)
+
+    dev.off()
+
+    saveRDS(significant_hits, file = glue("{path}/twostep_{exposure}_{hrc_version}_{stats_step1}_df.rds"))
+    return(glue("{path}/twostep_{exposure}_{hrc_version}_{stats_step1}.png"))
+
+}
+
+
+
+
+
+
+
+
+#' create_twostep_plot_eh
+#' 
+#' modified twostep plots with expectation based bins + step 2 GxE test adjustment for effective number of tests in each bin
+#' I don't call this function directly, I use another wrapper defined below..  
+#'
+#' @param data Processed GxEScanR output
+#' @param exposure string
+#' @param covars vector
+#' @param binsToPlot numeric
+#' @param stats_step1 string
+#' @param sizeBin0 numeric
+#' @param alpha numeric
+#' @param path string
+#' @param meff_method string - gao or liji
+#' @param number_of_snps vector - number of snps for each bin
+#' @param number_of_tests vector - effective number of tests for each bin
+#'
+#' @return
+#' @export
+#'
+#' @examples
+create_twostep_plot_eh <- function(data, exposure, covars, binsToPlot, stats_step1, sizeBin0, alpha, path, meff_method = "", number_of_snps, number_of_tests) { 
+
+    # ------- Some Functions ------- #
+    # plot title and file name
+    write_twostep_weightedHT_plot_title <- function(statistic, exposure, covars, total) {
+	gxescan_tests <- c(paste0("D|G 2-step Procedure Results (N = ", total, ")\noutc ~ G+", paste0(covars, collapse = "+"),"+", exposure),
+	    paste0("G|E 2-step Procedure Results (N = ", total, ")\nG ~ ", exposure, "+", paste0(covars, collapse = "+")),
+	    paste0("EDGE 2-step Procedure Results (N = ", total, ")\nchiSqG + chiSqGE"))
+	names(gxescan_tests) <- c("chiSqG", "chiSqGE", "chiSqEDGE")
+	return(gxescan_tests[statistic])
+    }
+
+    # add mapinfo so that points in plot reflect chromosome/location on x-axis
+    create_mapinfo <- function(x) {
+	x %>% 
+	    arrange(Chromosome, Location) %>% 
+	    mutate(mapinfo = seq(unique(bin_number) - 1 + 0.1, unique(bin_number) - 1 + 0.9, length.out = nrow(.)))
+    }
+
+    # ------- create working dataset ------- #
+    # assign SNPs to bins
+    # expectation assumption
+    m = 1000000 
+    # (number of bins should always equal 18 with one million tests)
+    nbins = floor(log2(m/sizeBin0 + 1))
+    nbins = if (m > sizeBin0 * 2^nbins) {nbins = nbins + 1} 
+    # bin sizes
+    sizeBin = c(sizeBin0 * 2^(0:(nbins-2)), sizeBin0 * (2^(nbins-1)) )
+    sizeBin_endpt = cumsum(sizeBin) 
+    # step 1 bin p value cutoffs (see expectation based slides)
+    alphaBin_step1 = sizeBin_endpt/1000000
+    alphaBin_step1_cut <- c(-Inf, alphaBin_step1, Inf)
+
+    tmp <- data %>%
+	dplyr::mutate(step1p = .data[[glue(stats_step1, "_p")]],
+	    step2p = chiSqGxE_p,
+	    bin_number = as.numeric(cut(step1p, breaks = alphaBin_step1_cut))) %>%
+    dplyr::arrange(step1p)
+
+
+# add step2 significance threshold, adjusted for effective number of tests
+# make sure SNPs are sorted by step1p!
+meff <- c(number_of_tests[1:binsToPlot])
+alphaBin_step2_simpleM = alpha * 2 ^ -(1:binsToPlot) / meff
+rep_helper <- c(table(tmp[, 'bin_number']))[as.character(1:binsToPlot)]
+rep_helper <- replace(rep_helper, is.na(rep_helper), 0)
+
+# index_helper <- as.numeric(names(rep_helper[!is.na(names(rep_helper))]))
+index_helper <- names(rep_helper[!is.na(names(rep_helper))])
+
+step2p_sig_simpleM <- rep(alphaBin_step2_simpleM, rep_helper)
+
+# ------- Plot ------- #
+
+tmp_plot <- tmp %>%
+    dplyr::filter(bin_number <= binsToPlot) %>%
+    dplyr::mutate(step2p_sig = step2p_sig_simpleM,
+	log_step2p_sig = -log10(step2p_sig), 
+	log_step2p = -log10(step2p))
+
+    # output data.frame of significant findings if any
+    significant_hits <- dplyr::filter(tmp_plot, step2p < step2p_sig_simpleM)
+
+    # index to name the list (for convenience when plotting)
+    list_names <- unique(tmp_plot$bin_number)
+
+    # output list of bins for plotting
+    tmp_plot <- tmp_plot %>% 
+	arrange(Chromosome, Location) %>% 
+	group_by(bin_number) %>% 
+	group_split()
+
+    names(tmp_plot) <- list_names
+
+    # subset the label vectors too
+    number_of_snps <- number_of_snps[list_names]
+    number_of_tests <- number_of_tests[list_names]
+
+    # add mapinfo (see functions)
+    tmp_plot <- map(tmp_plot, create_mapinfo)
+
+    cases <- unique(tmp[, 'Cases'])
+    controls <- unique(tmp[, 'Subjects']) - unique(tmp[, 'Cases'])
+    total <- cases + controls
+    logp_plot_limit = 12
+
+    # plots
+    png(glue("{path}/twostep_{meff_method}_{exposure}_{hrc_version}_{stats_step1}.png"), height = 720, width = 1280)
+    color <- rep(c("#377EB8","#4DAF4A"),100)
+    par(mar=c(6, 7, 6, 3))
+    bin_to_plot = tmp_plot[[1]]
+
+    plot(pull(bin_to_plot, mapinfo), pull(bin_to_plot, log_step2p),
+	col = ifelse(pull(bin_to_plot, SNP) %in% significant_hits[, 'SNP'], '#E41A1C','#377EB8'),
+	pch = ifelse(pull(bin_to_plot, SNP) %in% significant_hits[, 'SNP'], 19, 20),
+	cex = ifelse(pull(bin_to_plot, SNP) %in% significant_hits[, 'SNP'], 1.3, 1.7),
+	xlab="Bin number for step1 p value",
+	ylab="-log10(step2 chiSqGxE p value)",
+	xlim=c(0, binsToPlot),
+	ylim=c(0, logp_plot_limit),
+	axes=F,
+	cex.main = 1.7,
+	cex.axis = 1.7,
+	cex.lab = 1.7,
+	cex.sub = 1.7)
+    lines(c(unique(pull(bin_to_plot, bin_number)) - 1, 
+	    unique(pull(bin_to_plot, bin_number))), 
+	rep(unique(pull(bin_to_plot, log_step2p_sig)), 2), 
+	col = "black", lwd = 1)
+    text(unique(pull(bin_to_plot, bin_number)) - 1 + 0.5, pull(bin_to_plot, log_step2p_sig)[1] + 2, paste0("SNPs: ", number_of_snps[1]))
+    text(unique(pull(bin_to_plot, bin_number)) - 1 + 0.5, pull(bin_to_plot, log_step2p_sig)[1] + 1, paste0("Meff: ", number_of_tests[1]))
+
+    # remaining bins
+    for(i in 2:length(tmp_plot)) {
+	bin_to_plot = tmp_plot[[i]]
+
+	points(pull(bin_to_plot, mapinfo), pull(bin_to_plot, log_step2p),
+	    col = ifelse(pull(bin_to_plot, SNP) %in% significant_hits$SNP, '#E41A1C', color[i]),
+	    pch = ifelse(pull(bin_to_plot, SNP) %in% significant_hits$SNP, 19, 20),
+	    cex = ifelse(pull(bin_to_plot, SNP) %in% significant_hits$SNP, 1.3, 1.7),
+	    cex.main = 1.7,
+	    cex.axis = 1.7,
+	    cex.lab = 1.7,
+	    cex.sub = 1.7)
+	lines(c(unique(pull(bin_to_plot, bin_number)) - 1,
+		unique(pull(bin_to_plot, bin_number))), 
+	    rep(unique(pull(bin_to_plot, log_step2p_sig)), 2),
+	    col = "black", lwd = 1)
+	text(unique(pull(bin_to_plot, bin_number)) - 1 + 0.5, unique(pull(bin_to_plot, log_step2p_sig)) + 2, paste0("SNPs: ", number_of_snps[i]))
+	text(unique(pull(bin_to_plot, bin_number)) - 1 + 0.5, unique(pull(bin_to_plot, log_step2p_sig)) + 1, paste0("Meff: ", number_of_tests[i]))
+    }
+
+    axis(1, at = c(-1.5, seq(0.5, binsToPlot-0.2, 1)), label = c(0, seq(1, binsToPlot, 1)), cex.axis = 1.7)
+    axis(2, at = c(0:floor(logp_plot_limit)), label = c(0:logp_plot_limit), cex.axis=1.7)
+    title(main = write_twostep_weightedHT_plot_title(stats_step1, exposure, covars, total), sub = "iBin Size = 5, alpha = 0.05", cex.main = 2, cex.sub = 1.7)
+
+    dev.off()
+
+    saveRDS(significant_hits, file = glue("{path}/twostep_{meff_method}_{exposure}_{hrc_version}_{stats_step1}_df.rds"))
+    return(glue("{path}/twostep_{meff_method}_{exposure}_{hrc_version}_{stats_step1}.png"))
+}
+
+
+
+
+
+
+#' Meff_PCA
+#' 
+#' from Gao et al 
+#'
+#' @param eigenValues 
+#' @param percentCut 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+Meff_PCA <- function(eigenValues, percentCut){
+    totalEigenValues <- sum(eigenValues)
+    myCut <- percentCut*totalEigenValues
+    num_Eigens <- length(eigenValues)
+    myEigenSum <- 0
+    index_Eigen <- 0
+
+    for(i in 1:num_Eigens){
+	if(myEigenSum <= myCut){
+	    myEigenSum <- myEigenSum + eigenValues[i]
+	    index_Eigen <- i
+	}
+	else{
+	    break
+	}
+    }	
+    return(index_Eigen)
+}
+
+
+#' inferCutoff
+#' 
+#' from Gao et al
+#'
+#' @param dt_My 
+#' @param PCA_cutoff 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+inferCutoff <- function(dt_My, PCA_cutoff){
+    CLD <- cor(dt_My)
+    eigen_My <- eigen(CLD)
+
+    # PCA approach
+    eigenValues_dt <- abs(eigen_My$values)
+    Meff_PCA_gao <- Meff_PCA(eigenValues_dt, PCA_cutoff)
+    return(Meff_PCA_gao)
+}
+
+
+#' meff_r
+#' 
+#' function to estimate effective number of tests using the Gao et al method (Meff)
+#'
+#' @param dat matrix of dosages
+#' @param PCA_cutoff numeric - paper recommends 0.995, but we're trying different values
+#' @param fixLength numeric - arbitrary set to 150
+#'
+#' @return
+#' @export
+#'
+#' @examples
+meff_r <- function(dat, PCA_cutoff = 0.995, fixLength = 150) {
+
+    # separate data.frame into chromosome specific lists of SNP vectors 
+    # assume that columns are in chr:bp order (they should be if input vector for binarydosage is ordered)
+    dat_colnames <- colnames(dat)[!colnames(dat) %in% "vcfid"]
+    tmp1 <- sapply(dat_colnames, function(x) strsplit(x, split = "\\."))
+    tmp2 <- sapply(tmp1, function(x) as.numeric(gsub("X", "", x[[1]][1])))
+    snps_list <- split(dat_colnames, tmp2) # names of SNPs by chromosome
+
+    # function to apply Meff method to chromosome specific lists of SNP vectors  (`snps_list`)
+    run_meff <- function(snps_vector) {
+
+	workdata <- dplyr::select(dat, vcfid, all_of(snps_vector)) %>% 
+	    pivot_longer(-vcfid, ) %>% 
+	    pivot_wider(names_from = vcfid, values_from = value) %>% 
+	    separate(name, into = c("chr", "bp", "ref", "alt"), remove = F) %>% 
+	    mutate(chr = as.numeric(gsub("X", "", chr)), 
+		bp = as.numeric(bp)) %>% 
+	    arrange(chr, bp) %>% 
+	    dplyr::select(-chr, -bp, -ref, -alt, -name)
+
+	numLoci <- length(pull(workdata, 1))
+
+	simpleMeff <- NULL
+
+	fixLength <- fixLength
+	i <- 1
+	myStart <- 1
+	myStop <- 1
+	iteration <- 0
+
+	while(myStop < numLoci){
+	    myDiff <- numLoci - myStop 
+	    if(myDiff <= fixLength) break
+
+	    myStop <- myStart + i*fixLength - 1
+	    snpInBlk <- t(workdata[myStart:myStop, ])
+	    MeffBlk <- inferCutoff(snpInBlk, PCA_cutoff)
+	    simpleMeff <- c(simpleMeff, MeffBlk)
+	    myStart <- myStop+1
+	    iteration <- iteration+1
+	    print(iteration)
+	}
+
+	snpInBlk <- t(workdata[myStart:numLoci, ])
+	MeffBlk <- inferCutoff(snpInBlk, PCA_cutoff)
+	simpleMeff <- c(simpleMeff, MeffBlk)
+
+	return(sum(simpleMeff))
+    }
+
+    # apply `run_meff` function here, return integer
+    eff_tests_list <- map(snps_list, run_meff)
+    return(do.call(sum, eff_tests_list))
+
+}
+
+
+
+
+
+
+#' meff_liji
+#' 
+#' method from Li and Ji paper 
+#'
+#' @param dat matrix of dosages
+#'
+#' @return
+#' @export
+#'
+#' @examples
+meff_liji <- function(dat) {
+    dat <- dat[, -1]
+    #dat <- t(dat)
+    S <- cor(dat)
+    lambda <- eigen(S)$values
+    # lambda
+    y <- abs(lambda)
+    f <- (y >= 1) + (y - floor(y))
+    #sum(f)
+
+    return(sum(f))
+}
+
+
+
+
+#' simplem_wrap
+#' 
+#' wrapper to create twostep plots with expectation based binning + adjustment of step2 tests by bin specific effective number of tests
+#' the name might be confusing since simplem is the gao method, but this does both gao and liji for now
+#'
+#' @param data Processed GxEScanR output
+#' @param exposure string
+#' @param covariates vector
+#' @param simplem_step1_statistic string
+#' @param path string
+#' @param meff_method string - gao or liji
+#' @param gwas_snps vector - to remove GWAS SNPs if desired
+#' @param gao_pca_cutoff numeric - default is 0.995
+#'
+#' @return
+#' @export
+#'
+#' @examples
+simplem_wrap <- function(data, exposure, covariates, simplem_step1_statistic, path, meff_method, gwas_snps=NULL, gao_pca_cutoff = 0.995) {
+
+
+    # FYI - glue is not regex friendly? 
+    # FYI - glue is NOT regex friendly
+    files_input <- mixedsort(list.files(path, pattern = paste0(paste0("expectation_based_snplist_", exposure, "_", hrc_version, "_", simplem_step1_statistic, "_bin"), "(?:.+)", "output.rds"), full.names = T)) 
+    files_list <- map(files_input, ~ readRDS(.x)) 
+
+    tmp_function <- function(zz, gwas_snps) {
+	zznames <- substr(names(zz), 1, nchar(names(zz)) - 4)
+	zz_index <- !zznames %in% gwas_snps
+	zz_out <- zz[, zz_index]
+	return(zz_out)
+    }
+
+    # filter out GWAS SNPs if you provide them (be careful of the SNP name format, in this case it's just chr:bp)
+    if(!is.null(gwas_snps)) {
+	files_list <- map(files_list, ~ tmp_function(.x, gwas_snps))
+    }
+
+    # calculate effective number of tests, output results in vector
+    if(meff_method == "gao") {
+	number_of_snps <- map_int(files_list, ~ ncol(.x)) - 1 # -1 to remove vcfid column
+	number_of_tests <- map_int(files_list, ~ meff_r(dat = .x, PCA_cutoff = gao_pca_cutoff, fixLength = 150))
+    } else if (meff_method == "liji") {
+	number_of_snps <- map_int(files_list, ~ ncol(.x)) - 1 # -1 to remove vcfid column
+	number_of_tests <- round(map_dbl(files_list, ~ meff_liji(dat = .x)))
+    }
+
+    #number_of_snps <- map_int(files_list, ~ ncol(.x)) - 1 # -1 to remove vcfid column 
+    #number_of_tests <- map_int(files_list, ~ meff_r(dat = .x, PCA_cutoff = 0.995, fixLength = 150))
+
+    if(meff_method == "gao") {
+	meff_method_out = glue("gao_{gao_pca_cutoff}")
+    } else {
+	meff_method_out = meff_method
+    }
+
+    # call create_twostep_plot_eh. 
+    output_filename <- create_twostep_plot_eh(data,
+	exposure = exposure,
+	covars = covariates,
+	binsToPlot = 7,
+	stats_step1 = simplem_step1_statistic,
+	sizeBin0 = 5,
+	alpha = 0.05,
+	path = "output",
+	meff_method = meff_method_out, # really just for the file name label at this point
+	number_of_snps = number_of_snps,
+	number_of_tests = number_of_tests)
+   
+   return(output_filename) 
+
+}
+
+
+
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+# create functional annotation plots 
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+
+# this function will get plink ld for the given hit
+# snp is default format of chr:bp:ref:alt
+
+# snp <- "12:50610976:C:T"
+# ld_window = 500000
+# eur_path = "/scratch/andreeki/locuszoom/data/1000G/genotypes/2017-04-10/EUR"
+# eur_path = "/scratch/andreeki/locuszoom/data/1000G/genotypes/2014-10-14/EUR"
+# 
+# wtf <- unlist(strsplit(snp, ':'))
+# chr <- wtf[1]
+# bp <- as.numeric(wtf[2])
+# ref <- wtf[3]
+# alt <- wtf[4]
+
+
+
+
+output_functional_plot <- function(snp, ld_window = 500000, plot_window = 50000) {
+
+  # path for plink files (LD calculation) and writing out bed, ini, pdf, and png files (folder contains all functional annotation stuff)
+  # note that the tmp1.ini and tmp2.ini are hardcoded (just find a permanent place for them)
+  eur_path = "/scratch/andreeki/locuszoom/data/1000G/genotypes/2014-10-14/EUR"
+  wdir = "output/functional_plot"
+  tdir = "../data"
+
+  # create the wdir
+  dir.create(file.path(glue("{wdir}")), showWarnings = F)
+
+  tmp <- unlist(strsplit(snp, ":"))
+  chr <- tmp[1]
+  bp <- as.numeric(tmp[2])
+  ref <- tmp[3]
+  alt <- tmp[4]
+
+  snpid          <- glue("chr{chr}:{bp}")
+  snpid_filename <- glue("chr{chr}_{bp}")
+
+  # get LD SNPs for the locus you're plotting
+  system(glue("plink --allow-extra-chr --bfile {eur_path}/chr{chr} --ld-snp {snpid} --out {wdir}/EUR_{snpid_filename}_ld --r2 --ld-window {ld_window}"))
+
+  # create bed file for functional annotation plot
+  # filter by r2 < 0.5
+  bed_out <- read.table(glue("{wdir}/EUR_{snpid_filename}_ld.ld"), header = T) %>%
+    dplyr::filter(R2 >= 0.5) %>%
+    mutate(v1 = paste0('chr', CHR_B),
+           v2 = BP_B - 1,
+           v3 = BP_B,
+           v4 = paste0(CHR_B, "_", BP_B),
+           v5 = round(R2*1000),
+           v6 = '.',
+           v7 = BP_B - 1,
+           v8 = BP_B - 1,
+           v9 = ifelse(R2 >= 0.5 & R2 < 0.8, '212,63,58',
+                       ifelse(R2 >= 0.8, '150,50,184', NA))) %>%
+    filter(!duplicated(.)) %>%
+    dplyr::select(v1,v2,v3,v4,v5,v6,v7,v8,v9)
+
+  write.table(bed_out,
+              file = glue("{wdir}/functional_annotation_{snpid_filename}.bed"),
+              quote = F, row.names = F, col.names = F, sep = '\t')
+
+  # create bed file for annotation main hit with vertical line
+  bed_chr_vlines <- bed_out %>%
+    filter(v3 == bp)
+
+  write.table(bed_chr_vlines,
+              file = glue("{wdir}/functional_annotation_{snpid_filename}_vlines.bed"),
+              quote = F, row.names = F, col.names = F, sep = '\t')
+
+  # create .ini files for pygenometracks
+  cat(paste("[snps]",
+            glue("file={wdir}/functional_annotation_{snpid_filename}.bed"),
+            "title = r^2 > 0.5",
+            "height = 1",
+            "color = bed_rgb",
+            "border_color=none",
+            "labels=false",
+            "display=collapsed",
+            "fontsize=11",
+            "file_type=bed", sep = '\n'),
+      file = glue("{wdir}/functional_annotation_{snpid_filename}_track.ini"), append = F)
+
+
+  cat(paste("\n",
+            "[vlines]",
+            glue("file={wdir}/functional_annotation_{snpid_filename}_vlines.bed"),
+            "type=vlines",
+            "labels=true",
+            "\n", sep = '\n'), # this is only available in updated version of pygenometracks..
+      file = glue("{wdir}/functional_annotation_{snpid_filename}_track.ini"), append = T) # appending to the previous file
+
+  # assemble .ini file using system call
+  system(glue("cat {tdir}/tmp1.ini {wdir}/functional_annotation_{snpid_filename}_track.ini {tdir}/tmp2.ini > {wdir}/functional_annotation_{snpid_filename}.ini"))
+
+  # create a bash script to call under R
+  # system calls don't seem to work
+  # create shell script
+  cat(glue("#!/bin/bash",
+           "pyGenomeTracks --tracks {wdir}/functional_annotation_{snpid_filename}.ini --fontSize 8 --dpi 60 --region chr{chr}:{bp-plot_window}-{bp+plot_window} --outFileName {wdir}/functional_annotation_{snpid_filename}.pdf",
+           "gs -o {wdir}/functional_annotation_{snpid_filename}.png -sDEVICE=png16m -dTextAlphaBits=4 -r300 -dLastPage=1 {wdir}/functional_annotation_{snpid_filename}.pdf",
+           .sep = "\n"), file = glue("{wdir}/functional_annotation_{snpid_filename}.sh"), append = F)
+
+  # call shell script
+  system(glue("bash  {wdir}/functional_annotation_{snpid_filename}.sh"))
+
+  # return the png file
+  return(glue("{wdir}/functional_annotation_{snpid_filename}.png"))
+
+}
+
+
+
+
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+# create locuszoom plots
+#------------------------------------------------------------------------------#
+#------------------------------------------------------------------------------#
+
+output_locuszoom_plot <- function(snp, exposure, hrc_version, statistic, plot_window = 500, path) {
+  
+  # path for plink files (LD calculation) and writing out bed, ini, pdf, and png files (folder contains all functional annotation stuff)
+  # note that the tmp1.ini and tmp2.ini are hardcoded (just find a permanent place for them)
+  annotation_file = "../data/locuszoom_gecco_uk_asia_gwas_annotation_203"
+  wdir = glue("{path}/locuszoom_plot")
+  # wdir = "output/locuszoom_plot"
+  pval_file = glue("data/FIGI_{hrc_version}_gxeset_{exposure}_basic_covars_gxescan_{statistic}_locuszoom.txt")
+  
+  # create the wdir 
+  dir.create(file.path(glue("{wdir}")), showWarnings = F)
+  
+  tmp <- unlist(strsplit(snp, ":"))
+  chr <- tmp[1]
+  bp <- as.numeric(tmp[2])
+  ref <- tmp[3]
+  alt <- tmp[4]
+  
+  snpid          <- glue("chr{chr}:{bp}")
+  snpid_filename <- glue("chr{chr}_{bp}")
+  
+  # gwas results
+  gwas_loci_tmp <- read.table(glue("{annotation_file}.txt"), header = T, stringsAsFactors = F)
+  
+  # need to create blank denote-markers-file. you get errors if you specify a file and doesn't overlap with your hit
+  tmp1 <- c(snpid, "", "white")
+  gwas_loci <- rbind(gwas_loci_tmp, tmp1)
+  write.table(gwas_loci, file = glue("{wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.txt"), quote = F, row.names = F, sep = "\t")
+  
+  system(glue("/scratch/andreeki/locuszoom/bin/locuszoom --snpset NULL --metal {pval_file} --pop EUR --build hg19 --source 1000G_Nov2014 --refsnp {snpid} --flank {plot_window}kb --prefix {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}  --no-date title='{exposure} x {snpid} - {statistic}' signifLine=7.30103 signifLineColor='blue' --denote-markers-file {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.txt"))
+  
+  system(glue("gs -o {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.png -sDEVICE=png16m -dTextAlphaBits=4 -r300 -dLastPage=1 {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}/chr{chr}_{bp-(plot_window*1000)}-{bp+(plot_window*1000)}.pdf"))
+  
+  # return png file
+  return(glue("{wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.png"))
+}
+
+
+
+

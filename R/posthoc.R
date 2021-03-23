@@ -98,56 +98,84 @@ fit_gxe <- function(ds, exposure, snp, covariates) {
 #' @export
 #'
 #' @examples fit_gxe_stratified(ds = figi, exposure = 'asp_ref', snp = 'chr1_8559660_G_A', covariates = c('age_ref_imp', 'study_gxe'), strata = 'sex', method = 'chiSqGxE')
-fit_gxe_stratified <- function(ds, 
+fit_gxe_stratified <- function(data_epi, 
                                exposure, 
                                snp, 
                                covariates, 
                                strata = c('sex', 'study_design', 'cancer_site_sum2'), 
-                               method = c('chiSqGxE', 'two-step', 'chiSqCase', 'chiSq2df', 'chiSq3df')) {
+                               method = c('chiSqGxE', 'two-step', 'chiSqCase', 'chiSq2df', 'chiSq3df'), 
+                               path) {
+  
+  
+  wdir = glue("{path}/posthoc")
+  
+  # SNP information
+  snp_info <- unlist(strsplit(snp, split = ":"))
+
+  snpname_clean <- function(x) {
+    tmp <- gsub("\\:", "\\_", x)
+    # tmp <- gsub("X", "chr", tmp)
+    tmp <- glue("chr{tmp}_dose")
+    return(tmp)
+  }
+  
+  snpfix <- snpname_clean(snp)
+  snpfix_short <- paste0("chr", gsub("\\:", "\\_", snp))
+  
+  data_dose <- qread(glue("{wdir}/dosage_chr{snp_info[1]}_{snp_info[2]}.qs"))
+  data <- inner_join(data_epi, data_dose, 'vcfid')
+  
+  
+  # check if SNP has to be recoded (for consistency with RERI model)
+  model_check <- glm(glue("outcome ~ {exposure}*{snpfix} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = data)
+
+  if (model_check[[1]][snpfix] < 0) {
+    snp_old <- snpfix
+    snp_tmp <- unlist(strsplit(snpfix, split = "_"))
+    chr <- snp_tmp[1]
+    bp <- snp_tmp[2]
+    a1 <- snp_tmp[3]
+    a2 <- snp_tmp[4]
+    snp_new <- glue("{chr}_{bp}_{a2}_{a1}_dose_flipped")
+    data[[snp_new]] <- abs(2-data[, snp_old])
+  } else {
+    snp_new <- snpfix
+  }
   
   # limit possible argument choices
   strata <- match.arg(strata)
   method <- match.arg(method)
   covariates_nostrata <- paste0(covariates[! covariates %in% strata], collapse = " + ")
   
-  # flip dosage coding if linear model parameter is negative (protective)
-  # dg_model <- lm(as.formula(paste0("outcome ~ ", snp)), data = ds)
-  dg_model <- lm(paste0("outcome ~ ", snp, "*", exposure, "+", paste0(covariates, collapse = "+")), data = ds)
-  if(dg_model$coefficients[2] < 0) {
-    # flip dosages
-    ds[, paste0(snp)] <- abs(ds[, paste0(snp)] - 2)
-  }
-  
   # create numeric exposure and strata variables
-  ds[, 'strata_num'] <- as.numeric(factor(ds[, strata]))-1
-  ds[, 'exposure_num'] = as.numeric(ds[, exposure])
+  data[, 'strata_num'] <- as.numeric(factor(data[, strata]))-1
+  data[, 'exposure_num'] = as.numeric(data[, exposure])
   
   # compile results as list  
   out <- list()
   
   ## overall GLM
-  out_all <- fit_gxe(ds, exposure, snp, covariates_nostrata)
+  out_all <- fit_gxe(data, exposure, snp_new, covariates_nostrata)
   out[['all']] <- out_all
   
   ## stratified GLM
-  number_of_levels <- nlevels(factor(ds[, strata]))
+  number_of_levels <- nlevels(factor(data[, strata]))
   for(level in seq(number_of_levels) - 1) {
     # analysis subsets for each strata
     # need specific case for cancer_site_sum2 to capture controls
     if(strata == "cancer_site_sum2") {
-      index_vector <- which(ds[, 'strata_num'] == level | ds[,'outcome'] == 0)
+      index_vector <- which(data[, 'strata_num'] == level | data[,'outcome'] == 0)
     } else {
-      index_vector <- which(ds[, 'strata_num'] == level)
+      index_vector <- which(data[, 'strata_num'] == level)
     }
-    out_level <- fit_gxe(ds[index_vector,], exposure, snp, covariates_nostrata)
+    out_level <- fit_gxe(data[index_vector,], exposure, snp_new, covariates_nostrata)
     out[[paste0(strata, "_", as.character(level))]] <- out_level
   }
   
   # ----------------------------------- #
   # process output, create stargazer HTML
   # ----------------------------------- #
-  output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
-  
+
   # exponentiated coefficients
   list_of_glms <- lapply(out, function(x) x[[1]])
   list_of_samplesizes <- lapply(list_of_glms, function(x) paste0(c("Ca=", "Co="), rev(as.character(table(x$model$outcome))), collapse = ','))
@@ -167,29 +195,29 @@ fit_gxe_stratified <- function(ds,
   list_of_chisq <- lapply(out, function(x) x[[2]])
   
   if(method %in% c('chiSqGxE', 'two-step', 'chiSqCase')) {
-    gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq(x[[1]], df = 1, lower.tail = F), format = "e", digits = 5)))
+    gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq(x[[1]], df = 1, lower.tail = F), format = "e", digits = 4)))
     notes <- c("(PC and Study estimates omitted from table)", 
                paste0(col_label, ", LRtest GxE p = ", gxe_pvalues))
   } else if(method == "chiSq2df") {
-    gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq(x[[2]], df = 2, lower.tail = F), format = "e", digits = 5)))
+    gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq(x[[2]], df = 2, lower.tail = F), format = "e", digits = 4)))
     notes <- c("(PC and Study estimates omitted from table)", 
                paste0(col_label, ", LRtest 2DF p = ", gxe_pvalues))
   } else if(method == "chiSq3df") {
-    gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq((x[[2]] + x[[3]]), df = 3, lower.tail = F), format = "e", digits = 5)))
+    gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq((x[[2]] + x[[3]]), df = 3, lower.tail = F), format = "e", digits = 4)))
     notes <- c("(PC and Study estimates omitted from table)", 
                paste0(col_label, ", LRtest 3DF p = ", gxe_pvalues))
   }
   
   # call stargazer
   out_html <- stargazer_helper(list_of_glms,
-                               title=paste0(gsub('\\_', '\\\\_', strata), " stratified ", gsub("\\_", "\\\\_", snp), " x ", gsub('\\_', '\\\\_', exposure)), 
+                               title=paste0(gsub('\\_', '\\\\_', strata), " stratified ", gsub("\\_", "\\\\_", snp_new), " x ", gsub('\\_', '\\\\_', exposure)), 
                                column.labels=col_label,
                                coef=coefs, 
                                notes=notes, single.row = T)
   
   # output to file
   cat(paste(out_html, collapse = "\n"), "\n",
-      file = paste0(output_dir, "gxe_", method, "_", snp, "_", exposure, "_", paste0(covariates, collapse = '_'), "_stratified_", strata, ".html"), append = F)
+      file = glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snp_new}_{glue_collapse(covariates, sep = '_')}_stratified_by_{strata}.html"), append = F)
 }
 
 
