@@ -403,3 +403,42 @@ fit_gxe_stratified <- function(data_epi,
 
   return(glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snp_new}_{glue_collapse(covariates, sep = '_')}_stratified_by_{strata}.html"))
 }
+
+
+
+
+
+
+
+
+
+
+
+# create function that takes the bed files from functional annotation plots and creates a table summarizing overlaps between scacheri and finucane 
+
+# the function should simply define input and output files and then call the perl script in ../data/Annotation etc 
+# just SNP should suffice (chr5_12345)
+# snp = "5:40252294:C:T"
+#
+
+# you kno what, i'm going to put this at the end of the functional annotation plot scirpt.. 
+# NO ... since you never know if you'll expand upon these annotations.. 
+output_chromatin_mark_overlap <- function(snp, path) {
+  
+  idir <- glue("{path}/functional_plot")
+  odir <- glue("{path}/functional_annotation")
+  
+  dir.create(file.path(glue("{odir}")), showWarnings = F)
+  
+  tmp <- unlist(strsplit(snp, ":"))
+  chr <- tmp[1]
+  bp <- as.numeric(tmp[2])
+  ref <- tmp[3]
+  alt <- tmp[4]
+  
+  file_input <- (glue("{idir}/functional_annotation_chr{chr}_{bp}.bed"))
+  file_output <- (glue("{odir}/functional_annotation_chr{chr}_{bp}_chromatin_marks.tsv"))
+  
+  system(glue("perl ../data/Annotation_Workflow/chromatin_marks/summarize-overlap-regulatory-region.pl {file_input} {file_output}"))
+  return(file_output)
+}
