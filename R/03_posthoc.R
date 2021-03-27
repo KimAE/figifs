@@ -127,55 +127,52 @@ stargazer_helper <- function(..., title, column.labels, coef, notes) {
 }
 
 
-#' fit_gxe_covars
-#' 
-#' @description
-#' generates GLM summaries of GxE interaction models for multiple covariate sets. (This is much easier - just apply function calls to the list of covariates). Outputs an HTML file that is meant to be inserted in Rmarkdown documents
-#'
-#' @section Warning:
-#' files paths are hardcoded -- /media/work/gwis/posthoc/exposure folder
-#' 
-#' @param ds dataset
-#' @param exposure string containing name of exposure
-#' @param snp string containing data variable name of SNP (should match names in dataset)
-#' @param covariates_list vector of adjustment covariates
-#' @param method string describing GxE methods used. Only determines which LR test p-value to report in notes section of stargazer table. Possible choices include chiSqGxE, two-step, chiSqCase, chiSq2df, chiSq3df
-#' @param output_dir string output directory
-#' 
-#' @return saves a raw HTML file to be used in Rmarkdown documents. Output file naming pattern is 'gxe_method_snp_exposure_covariate_sets'. 
-#' @export
-#'
-#' @examples fit_gxe_covars(ds = figi, exposure = 'asp_ref', snp = 'chr1_8559660_G_A', covariates = list(c('age_ref_imp', 'study_gxe'), c('age_ref_imp', 'study_gxe', 'bmi5')), strata = 'sex', method = 'chiSqGxE')
-fit_gxe_covars <- function(ds, 
+
+
+fit_gxe_covars <- function(data_epi, 
                            exposure, 
                            snp, 
                            covariates_list, 
                            method = c('chiSqGxE', 'two-step', 'chiSqCase', 'chiSq2df', 'chiSq3df'),
-                           output_dir) {
+                           path) {
   
   method <- match.arg(method)
   
-  # we probably don't want to flip SNPs for each covariates set, so let's base direction on the first set (always the simpler model), in the interaction model. 
-  model_check <- glm(glue("outcome ~ {exposure}*{snp} + {glue_collapse(covariates_list[[1]], sep = '+')}"), family = 'binomial', data = ds)
+  wdir = glue("{path}/posthoc")
   
-  snp_old <- snp
-  snp_tmp <- strsplit(snp, split = "_")
-  chr <- snp_tmp[[1]][1]
-  bp <- snp_tmp[[1]][2]
-  a1 <- snp_tmp[[1]][3]
-  a2 <- snp_tmp[[1]][4]
+  snp_info <- unlist(strsplit(snp, split = ":"))
   
-  if (model_check[[1]][snp] < 0) {
-    snp_new <- glue("{chr}_{bp}_{a2}_{a1}_flipped")
-    ds[[snp_new]] <- abs(2-ds[, snp_old])
-    ref_allele = a2
+  snpname_clean <- function(x) {
+    tmp <- gsub("\\:", "\\_", x)
+    # tmp <- gsub("X", "chr", tmp)
+    tmp <- glue("chr{tmp}_dose")
+    return(tmp)
+  }
+  
+  snpfix <- snpname_clean(snp)
+  snpfix_short <- paste0("chr", gsub("\\:", "\\_", snp))
+  
+  data_dose <- qread(glue("{wdir}/dosage_chr{snp_info[1]}_{snp_info[2]}.qs"))
+  data <- inner_join(data_epi, data_dose, 'vcfid')
+  
+  # check if SNP has to be recoded 
+  model_check <- glm(glue("outcome ~ {exposure}*{snpfix} + {glue_collapse(covariates_list[[1]], sep = '+')}"), family = 'binomial', data = data)
+  
+  if (model_check[[1]][snpfix] < 0) {
+    snp_old <- snpfix
+    snp_tmp <- unlist(strsplit(snpfix, split = "_"))
+    chr <- snp_tmp[1]
+    bp <- snp_tmp[2]
+    a1 <- snp_tmp[3]
+    a2 <- snp_tmp[4]
+    snp_new <- glue("{chr}_{bp}_{a2}_{a1}_dose_flipped")
+    data[[snp_new]] <- abs(2-data[, snp_old])
   } else {
-    snp_new <- snp
-    ref_allele = a1
+    snp_new <- snpfix
   }
   
   # apply 'fit_gxe' over covariate_list
-  out <- lapply(covariates_list, function(x) fit_gxe(ds, exposure, snp_new, covariates = x))
+  out <- lapply(covariates_list, function(x) fit_gxe(data, exposure, snp_new, covariates = x))
   
   # combine them to call stargazer
   list_of_glms <- lapply(out, function(x) x[[1]])
@@ -189,18 +186,15 @@ fit_gxe_covars <- function(ds,
   if(method == "chiSqGxE" | method == "twostep" | method == "chiSqCase") {
     gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq(x[[1]], df = 1, lower.tail = F), format = "e", digits = 5)))
     notes <- c("(PC and Study estimates omitted from table)", 
-               paste0("Reference allele = ", ref_allele),
-               paste0(col_label, ", LRtest GxE p = ", gxe_pvalues))
+               paste0("GxE term LRtest p = ", gxe_pvalues))
   } else if(method == "chiSq2df") {
     gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq(x[[2]], df = 2, lower.tail = F), format = "e", digits = 5)))
     notes <- c("(PC and Study estimates omitted from table)", 
-               paste0("Reference allele = ", ref_allele),
-               paste0(col_label, ", LRtest 2DF p = ", gxe_pvalues))
+               paste0("2DF LRtest p = ", gxe_pvalues))
   } else if(method == "chiSq3df") {
     gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq((x[[2]] + x[[3]]), df = 3, lower.tail = F), format = "e", digits = 5)))
     notes <- c("(PC and Study estimates omitted from table)", 
-               paste0("Reference allele = ", ref_allele),
-               paste0(col_label, ", LRtest 3DF p = ", gxe_pvalues))
+               paste0("3DF LRtest p = ", gxe_pvalues))
   }
   
   # save output html from stargazer
@@ -212,8 +206,14 @@ fit_gxe_covars <- function(ds,
   
   # write object to html file
   cat(paste(out_html, collapse = "\n"), "\n", 
-      file = paste0(output_dir, "gxe_", method, "_", snp, "_", exposure, "_covariate_sets.html"), append = F)
+      file = glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snpfix}_covariate_sets.html"), append = F)
+  
+  # return(glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snpfix}_{glue_collapse(sort(covariates), sep = '_')}_covariate_sets.html"))
+
 }
+
+
+
 
 
 #' fit_gxe
@@ -337,7 +337,7 @@ fit_gxe_stratified <- function(data_epi,
   out <- list()
   
   ## overall GLM
-  out_all <- fit_gxe(data, exposure, snp_new, covariates_nostrata)
+  out_all <- fit_gxe(data, exposure, snp_new, covariates)
   out[['all']] <- out_all
   
   ## stratified GLM
@@ -379,15 +379,15 @@ fit_gxe_stratified <- function(data_epi,
   if(method %in% c('chiSqGxE', 'two-step', 'chiSqCase')) {
     gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq(x[[1]], df = 1, lower.tail = F), format = "e", digits = 4)))
     notes <- c("(PC and Study estimates omitted from table)", 
-               paste0(col_label, ", LRtest GxE p = ", gxe_pvalues))
+               paste0("GxE term LRtest p = ", gxe_pvalues))
   } else if(method == "chiSq2df") {
     gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq(x[[2]], df = 2, lower.tail = F), format = "e", digits = 4)))
     notes <- c("(PC and Study estimates omitted from table)", 
-               paste0(col_label, ", LRtest 2DF p = ", gxe_pvalues))
+               paste0("2DF LRtest p = ", gxe_pvalues))
   } else if(method == "chiSq3df") {
     gxe_pvalues <- do.call(c, lapply(list_of_chisq, function(x) formatC(pchisq((x[[2]] + x[[3]]), df = 3, lower.tail = F), format = "e", digits = 4)))
     notes <- c("(PC and Study estimates omitted from table)", 
-               paste0(col_label, ", LRtest 3DF p = ", gxe_pvalues))
+               paste0("3DF LRtest p = ", gxe_pvalues))
   }
   
   # call stargazer
@@ -399,9 +399,9 @@ fit_gxe_stratified <- function(data_epi,
   
   # output to file
   cat(paste(out_html, collapse = "\n"), "\n",
-      file = glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snp_new}_{glue_collapse(covariates, sep = '_')}_stratified_by_{strata}.html"), append = F)
+      file = glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snpfix}_{glue_collapse(sort(covariates), sep = '_')}_stratified_by_{strata}.html"), append = F)
 
-  return(glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snp_new}_{glue_collapse(covariates, sep = '_')}_stratified_by_{strata}.html"))
+  return(glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snpfix}_{glue_collapse(sort(covariates), sep = '_')}_stratified_by_{strata}.html"))
 }
 
 
@@ -441,4 +441,87 @@ output_chromatin_mark_overlap <- function(snp, path) {
   
   system(glue("perl ../data/Annotation_Workflow/chromatin_marks/summarize-overlap-regulatory-region.pl {file_input} {file_output}"))
   return(file_output)
+}
+
+
+
+
+#' reri_wrapper
+#'
+#' @param data_epi 
+#' @param exposure 
+#' @param snp 
+#' @param covariates 
+#' @param path 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+reri_wrapper <- function(data_epi, exposure, snp, covariates, path){
+  
+  wdir <- glue("{path}/posthoc")
+  
+  snp_info <- unlist(strsplit(snp, split = ":"))
+  
+  snpname_clean <- function(x) {
+    tmp <- gsub("\\:", "\\_", x)
+    # tmp <- gsub("X", "chr", tmp)
+    tmp <- glue("chr{tmp}_dose")
+    return(tmp)
+  }
+  
+  snpfix <- snpname_clean(snp)
+  snpfix_short <- paste0("chr", gsub("\\:", "\\_", snp))
+  
+  data_dose <- qread(glue("{wdir}/dosage_chr{snp_info[1]}_{snp_info[2]}.qs"))
+  data <- inner_join(data_epi, data_dose, 'vcfid')
+  
+  # check if SNP has to be recoded
+  model_check <- glm(glue("outcome ~ {exposure}*{snpfix} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = data)
+  
+  if (model_check[[1]][snpfix] < 0) {
+    snp_old <- snpfix
+    snp_tmp <- unlist(strsplit(snpfix, split = "_"))
+    chr <- snp_tmp[1]
+    bp <- snp_tmp[2]
+    a1 <- snp_tmp[3]
+    a2 <- snp_tmp[4]
+    snp_new <- glue("{chr}_{bp}_{a2}_{a1}_dose_flipped")
+    data[[snp_new]] <- abs(2-data[, snp_old])
+  } else {
+    snp_new <- snpfix
+  }
+  
+  model <- glm(glue("outcome ~ {exposure}*{snp_new} + {glue_collapse(covariates, sep = '+')}"), family = binomial(link = "logit"), data = data)
+  # summary(model)
+  
+  
+  # calculate p value
+  
+  ## (get coef positions..) 
+  coef_names <- names(coef(model))
+  coef_exposure <- grep(exposure, coef_names)[1]
+  coef_snp <- grep(snp_new, coef_names)[1]
+  coef_interaction <- grep(exposure, coef_names)[2]
+  
+  ## calculation
+  reri_est = epi.interaction(model = model, coef = c(coef_exposure,coef_snp,coef_interaction), param = 'product', type  = 'RERI', conf.level = 0.95)
+  coef_keep <- coef_names[c(coef_exposure, coef_snp, coef_interaction)]
+  cov.mat <- vcov(model)
+  V2 = cov.mat[coef_keep, coef_keep]
+  
+  reri_se = deltamethod( ~ exp(x1 + x2 + x3) - exp(x1) - exp(x2) + 1, 
+                         mean = c( coef(model)[coef_exposure], coef(model)[coef_snp], coef(model)[coef_interaction]), 
+                         cov = V2)
+  
+  reri_pval = format.pval(2*pnorm(-abs(reri_est[1, 1] / reri_se)), digits = 4)
+  
+  # output 
+  value = interactionR(model, exposure_names = c(exposure, snp_new), ci.type = "delta", ci.level = 0.95, em = F, recode = F)
+  out <- interactionR_table2(value, pvalue = reri_pval) # just save as RDS and use flextable to print in rmarkdown docs.. 
+  
+  saveRDS(out, file = glue("{wdir}/reri_{exposure}_{hrc_version}_{snpfix}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
+  
+  
 }

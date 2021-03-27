@@ -194,5 +194,5 @@ fit_gxe_covars <- function(data,
   
   # write object to html file
   cat(paste(out_html, collapse = "\n"), "\n", 
-      file = glue("{path}/gxe_{method}_{snp}_{exposure}_covariate_sets.html"), append = F)
+      file = glue("{path}/gxe_{method}_{snpfix}_{exposure}_covariate_sets.html"), append = F)
 }

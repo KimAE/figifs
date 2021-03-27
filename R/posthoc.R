@@ -217,7 +217,7 @@ fit_gxe_stratified <- function(data_epi,
   
   # output to file
   cat(paste(out_html, collapse = "\n"), "\n",
-      file = glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snp_new}_{glue_collapse(covariates, sep = '_')}_stratified_by_{strata}.html"), append = F)
+      file = glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snpfix}_{glue_collapse(covariates, sep = '_')}_stratified_by_{strata}.html"), append = F)
 }
 
 

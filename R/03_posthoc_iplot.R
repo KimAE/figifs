@@ -64,7 +64,7 @@ iplot_wrapper <- function(data_epi, exposure, hrc_version, snp, covariates, path
   model <- glm(glue("outcome ~ {exposure}*{snp_new} + {glue_collapse(covariates, sep = '+')}"), family = binomial(link = "logit"), data = data)
   # summary(model)
   
-  png(glue("{wdir}/interaction_plot_{exposure}_{hrc_version}_{snp_new}_{glue_collapse(sort(covariates), sep = '_')}.png"), height = 720, width = 1280)
+  png(glue("{wdir}/interaction_plot_{exposure}_{hrc_version}_{snpfix}_{glue_collapse(sort(covariates), sep = '_')}.png"), height = 720, width = 1280)
   if (is.factor(data[,exposure])) {
     print(interact_plot(model, modx = !! exposure , pred = !! snp_new, plot.points = F, interval = T, outcome.scale = 'link', y.label = 'predicted log odds') + theme(text = element_text(size = 26)))
     # johnson_neyman(model, pred = folate_totqc2, modx = chr2_55255870_C_T, alpha = 0.05)
@@ -73,6 +73,6 @@ iplot_wrapper <- function(data_epi, exposure, hrc_version, snp, covariates, path
   }
   dev.off()
   
-  return(glue("{wdir}/interaction_plot_{exposure}_{hrc_version}_{snp_new}_{glue_collapse(sort(covariates), sep = '_')}.png"))
+  return(glue("{wdir}/interaction_plot_{exposure}_{hrc_version}_{snpfix}_{glue_collapse(sort(covariates), sep = '_')}.png"))
   # saveRDS(out, file = glue("{output_dir}reri_{exposure}_{snp}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
 }
