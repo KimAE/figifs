@@ -10,12 +10,12 @@
 #' @export
 #'
 #' @examples
-gwis_report <- function(exposure, hrc_version, covariates) {
+main_effects_report <- function(exposure, hrc_version, covariates, path) {
   rmarkdown::render('~/git/figi/main_effects/main_effects.Rmd',
                     params = list(exposure = exposure, 
                                   hrc_version = hrc_version,
                                   covariates = covariates, 
-                                  path = glue("{path}/output/posthoc/")), 
+                                  path = path),
                     output_file = glue('~/Dropbox/FIGI/Results/{exposure}_main_effects.html'))
 }
 

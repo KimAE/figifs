@@ -7,127 +7,127 @@
 
 # -------- create descriptive analysis output -------- #
 
-get_counts_outcome_by_group <- function(dat, outcome, group) {
+# get_counts_outcome_by_group <- function(dat, outcome, group) {
+# 
+#     # get counts for rmeta function
+#     dat <- dat %>%
+# 	dplyr::group_by( .data[[outcome]], .data[[group]] ) %>%
+# 	dplyr::summarize(count = dplyr::n()) %>%
+# 	tidyr::spread(key = {{ outcome }}, value = count) %>%
+# 	dplyr::rename(Control = `0`, Case = `1`) %>%
+# 	dplyr::mutate(N = Control + Case)
+#     return(dat)
+# }
 
-    # get counts for rmeta function
-    dat <- dat %>%
-	dplyr::group_by( .data[[outcome]], .data[[group]] ) %>%
-	dplyr::summarize(count = dplyr::n()) %>%
-	tidyr::spread(key = {{ outcome }}, value = count) %>%
-	dplyr::rename(Control = `0`, Case = `1`) %>%
-	dplyr::mutate(N = Control + Case)
-    return(dat)
-}
-
-
-# meta analyses
-
-create_forest_plot <- function(exposure, covariates, hrc_version, path, forest_height = 17, forest_width = 8.5, funnel_height = 8, funnel_width = 8.5, strata = 'all') {
-
-    # prepare dataset
-    # note the location of these files. They're input files I created before running scans
-    exposure_subset <- readRDS(glue("data/FIGI_{hrc_version}_gxeset_{exposure}_basic_covars_glm.rds")) %>% 
-	dplyr::pull(vcfid)
-
-    glm_dat <- readRDS(glue("/project/dconti_250/FIGI_EpiData/FIGI_{hrc_version}_gxeset_analysis_data_glm.rds")) %>% 
-	dplyr::filter(vcfid%in% exposure_subset)
-
-    # stratified meta-analysis plots
-    # make sure study_gxe is not in the covariates vector
-    covariates <- covariates[which(covariates != 'study_gxe')]
-
-    if (strata == 'female') {
-	# subset_vector <- glm_dat$sex == 0
-	glm_dat <- dplyr::filter(glm_dat, sex == 0)
-	covariates <- covariates[which(!covariates %in% c('sex'))]
-    } else if (strata == 'male') {
-	glm_dat <- dplyr::filter(glm_dat, sex == 1)
-	# subset_vector <- glm_dat$sex == 1
-	covariates <- covariates[which(!covariates %in% c('sex'))]
-    } else if (strata == 'proximal') {
-	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'proximal' | glm_dat$outcome == 0)
-	# subset_vector <- glm_dat$cancer_site_sum2 == 'proximal' | glm_dat$outcome == 0 
-    } else if (strata == 'distal') {
-	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'distal' | glm_dat$outcome == 0)
-	# subset_vector <- glm_dat$cancer_site_sum2 == 'distal' | glm_dat$outcome == 0 
-    } else if (strata == 'rectal') { 
-	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'rectal' | glm_dat$outcome == 0)
-	# subset_vector <- glm_dat$cancer_site_sum2 == 'rectal' | glm_dat$outcome == 0 
-    }
-
-    # some subsets generate empty cells, need to remove them
-    drops <- data.frame(table(glm_dat$study_gxe, glm_dat$outcome, glm_dat[, exposure])) %>% 
-	dplyr::filter(Freq == 0) %>% 
-	dplyr::pull(Var1) %>% 
-	unique(.)
-
-    glm_dat <- glm_dat %>% 
-	dplyr::filter(!study_gxe %in% drops)
-
-    # create model term
-    # model_formula <- Reduce(paste, deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome')))
-    model_formula <- deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome'))
-
-    # create study_design data.frame
-    study_design <- glm_dat %>%
-	dplyr::select(study_gxe, study_design) %>%
-	filter(!duplicated(.)) %>%
-	arrange(study_gxe)
-
-    glm_out <- glm_dat %>%
-	tidyr::nest(data = -study_gxe) %>% 
-	dplyr::mutate(
-	    fit = purrr::map(data, ~ glm(model_formula, data = .x, family = 'binomial')),
-	    tidied = purrr::map(fit, ~ tidy(.x)), 
-	    quality = purrr::map(fit, ~ glance(.x))
-	    ) %>% 
-	dplyr::select(-data, -fit) %>% 
-	tidyr::unnest(tidied) %>% tidyr::unnest(quality) %>% 
-	dplyr::filter(grepl(exposure, term),
-	    null.deviance > quantile(null.deviance, 0.01)) %>% 
-	dplyr::arrange(study_gxe)
-
-    # include study sample sizes and study design information
-    meta_input <- get_counts_outcome_by_group(glm_dat, 'outcome', 'study_gxe') %>%
-	mutate(study_gxe = as.character(study_gxe)) %>% 
-	full_join(study_design, 'study_gxe') %>% 
-	inner_join(glm_out, 'study_gxe')
-
-    results_meta <- meta::metagen(estimate,
-	std.error,
-	data=meta_input,
-	studlab=paste(study_gxe),
-	comb.fixed = FALSE,
-	comb.random = TRUE,
-	method.tau = "SJ",
-	hakn = TRUE,
-	prediction=TRUE,
-	sm="OR",
-	byvar = study_design)
-
-    # plot_title = glue(strata, "\n{model_formula}", .na = "All")
-    plot_title = glue(strata, " (N=", sum(glm_out$nobs), ")", "\n{model_formula}")
-
-    png(glue("{path}/forest_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"), height = forest_height, width = forest_width, units = 'in', res = 150)
-    meta::forest(results_meta,
-	layout = "JAMA",
-	# text.predict = "95% CI",
-	# col.predict = "black",
-	leftcols = c("studlab", "Control", "Case", "N", "effect", "ci", "w.random"),
-	digits.addcols=0,
-	study.results=T,
-	prediction = F,
-	col.random = 'red', 
-	xlim = c(0.25, 4))
-    grid.text(plot_title, 0.5, .98, gp=gpar(cex=1))
-    dev.off()
-
-    png(glue("{path}/funnel_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"), height = funnel_height, width = funnel_width, units = 'in', res = 150)
-    meta::funnel(results_meta, sm="OR", studlab = T, pos = 4, col.random = 'red')
-    dev.off()
-
-    #return(glue("{path}/forest_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"))
-}
+# 
+# # meta analyses
+# 
+# create_forest_plot <- function(exposure, covariates, hrc_version, path, forest_height = 17, forest_width = 8.5, funnel_height = 8, funnel_width = 8.5, strata = 'all') {
+# 
+#     # prepare dataset
+#     # note the location of these files. They're input files I created before running scans
+#     exposure_subset <- readRDS(glue("data/FIGI_{hrc_version}_gxeset_{exposure}_basic_covars_glm.rds")) %>% 
+# 	dplyr::pull(vcfid)
+# 
+#     glm_dat <- readRDS(glue("/project/dconti_250/FIGI_EpiData/FIGI_{hrc_version}_gxeset_analysis_data_glm.rds")) %>% 
+# 	dplyr::filter(vcfid%in% exposure_subset)
+# 
+#     # stratified meta-analysis plots
+#     # make sure study_gxe is not in the covariates vector
+#     covariates <- covariates[which(covariates != 'study_gxe')]
+# 
+#     if (strata == 'female') {
+# 	# subset_vector <- glm_dat$sex == 0
+# 	glm_dat <- dplyr::filter(glm_dat, sex == 0)
+# 	covariates <- covariates[which(!covariates %in% c('sex'))]
+#     } else if (strata == 'male') {
+# 	glm_dat <- dplyr::filter(glm_dat, sex == 1)
+# 	# subset_vector <- glm_dat$sex == 1
+# 	covariates <- covariates[which(!covariates %in% c('sex'))]
+#     } else if (strata == 'proximal') {
+# 	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'proximal' | glm_dat$outcome == 0)
+# 	# subset_vector <- glm_dat$cancer_site_sum2 == 'proximal' | glm_dat$outcome == 0 
+#     } else if (strata == 'distal') {
+# 	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'distal' | glm_dat$outcome == 0)
+# 	# subset_vector <- glm_dat$cancer_site_sum2 == 'distal' | glm_dat$outcome == 0 
+#     } else if (strata == 'rectal') { 
+# 	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'rectal' | glm_dat$outcome == 0)
+# 	# subset_vector <- glm_dat$cancer_site_sum2 == 'rectal' | glm_dat$outcome == 0 
+#     }
+# 
+#     # some subsets generate empty cells, need to remove them
+#     drops <- data.frame(table(glm_dat$study_gxe, glm_dat$outcome, glm_dat[, exposure])) %>% 
+# 	dplyr::filter(Freq == 0) %>% 
+# 	dplyr::pull(Var1) %>% 
+# 	unique(.)
+# 
+#     glm_dat <- glm_dat %>% 
+# 	dplyr::filter(!study_gxe %in% drops)
+# 
+#     # create model term
+#     # model_formula <- Reduce(paste, deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome')))
+#     model_formula <- deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome'))
+# 
+#     # create study_design data.frame
+#     study_design <- glm_dat %>%
+# 	dplyr::select(study_gxe, study_design) %>%
+# 	filter(!duplicated(.)) %>%
+# 	arrange(study_gxe)
+# 
+#     glm_out <- glm_dat %>%
+# 	tidyr::nest(data = -study_gxe) %>% 
+# 	dplyr::mutate(
+# 	    fit = purrr::map(data, ~ glm(model_formula, data = .x, family = 'binomial')),
+# 	    tidied = purrr::map(fit, ~ tidy(.x)), 
+# 	    quality = purrr::map(fit, ~ glance(.x))
+# 	    ) %>% 
+# 	dplyr::select(-data, -fit) %>% 
+# 	tidyr::unnest(tidied) %>% tidyr::unnest(quality) %>% 
+# 	dplyr::filter(grepl(exposure, term),
+# 	    null.deviance > quantile(null.deviance, 0.01)) %>% 
+# 	dplyr::arrange(study_gxe)
+# 
+#     # include study sample sizes and study design information
+#     meta_input <- get_counts_outcome_by_group(glm_dat, 'outcome', 'study_gxe') %>%
+# 	mutate(study_gxe = as.character(study_gxe)) %>% 
+# 	full_join(study_design, 'study_gxe') %>% 
+# 	inner_join(glm_out, 'study_gxe')
+# 
+#     results_meta <- meta::metagen(estimate,
+# 	std.error,
+# 	data=meta_input,
+# 	studlab=paste(study_gxe),
+# 	comb.fixed = FALSE,
+# 	comb.random = TRUE,
+# 	method.tau = "SJ",
+# 	hakn = TRUE,
+# 	prediction=TRUE,
+# 	sm="OR",
+# 	byvar = study_design)
+# 
+#     # plot_title = glue(strata, "\n{model_formula}", .na = "All")
+#     plot_title = glue(strata, " (N=", sum(glm_out$nobs), ")", "\n{model_formula}")
+# 
+#     png(glue("{path}/forest_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"), height = forest_height, width = forest_width, units = 'in', res = 150)
+#     meta::forest(results_meta,
+# 	layout = "JAMA",
+# 	# text.predict = "95% CI",
+# 	# col.predict = "black",
+# 	leftcols = c("studlab", "Control", "Case", "N", "effect", "ci", "w.random"),
+# 	digits.addcols=0,
+# 	study.results=T,
+# 	prediction = F,
+# 	col.random = 'red', 
+# 	xlim = c(0.25, 4))
+#     grid.text(plot_title, 0.5, .98, gp=gpar(cex=1))
+#     dev.off()
+# 
+#     png(glue("{path}/funnel_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"), height = funnel_height, width = funnel_width, units = 'in', res = 150)
+#     meta::funnel(results_meta, sm="OR", studlab = T, pos = 4, col.random = 'red')
+#     dev.off()
+# 
+#     #return(glue("{path}/forest_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"))
+# }
 
 
 

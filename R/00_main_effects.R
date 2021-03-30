@@ -298,7 +298,7 @@ get_estimates_gxe_by_group <- function(df, outcome, exposure, group, dosage, ...
 
 
 
-create_forest_plot <- function(data_epi, exposure, covariates, hrc_version, path, forest_height = 17, forest_width = 8.5, funnel_height = 8, funnel_width = 8.5, strata = 'all') {
+create_forest_plot <- function(data_epi, exposure, covariates, hrc_version, path, forest_height = 17, forest_width = 8.5, funnel_height = 8, funnel_width = 8.5, strata = 'all', categorical = T) {
   
   # note - data_epi should be the exposure subset you submitted to gxescanR
   # make sure study_gxe is not in the covariates vector
@@ -319,13 +319,25 @@ create_forest_plot <- function(data_epi, exposure, covariates, hrc_version, path
   }
   
   # some subsets generate empty cells, need to remove them
-  drops <- data.frame(table(data_epi$study_gxe, data_epi$outcome, data_epi[, exposure])) %>% 
-    dplyr::filter(Freq == 0) %>% 
-    dplyr::pull(Var1) %>% 
-    unique(.)
+  if(categorical == T) {
+    drops <- data.frame(table(data_epi$study_gxe, data_epi$outcome, data_epi[, exposure])) %>% 
+      dplyr::filter(Freq == 0) %>% 
+      dplyr::pull(Var1) %>% 
+      unique(.)
+    
+    data_epi <- data_epi %>% 
+      dplyr::filter(!study_gxe %in% drops)
+  } else if(categorical == F) {
+    drops <- data.frame(table(data_epi$study_gxe, data_epi$outcome)) %>% 
+      dplyr::filter(Freq == 0) %>% 
+      dplyr::pull(Var1) %>% 
+      unique(.)
+    
+    data_epi <- data_epi %>% 
+      dplyr::filter(!study_gxe %in% drops)
+  }
   
-  data_epi <- data_epi %>% 
-    dplyr::filter(!study_gxe %in% drops)
+ 
   
   # create model term
   # model_formula <- Reduce(paste, deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome')))
