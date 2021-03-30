@@ -1,3 +1,4 @@
+
 # convenience functions to output markdown reports
 #' gwis_report
 #'
@@ -10,7 +11,32 @@
 #'
 #' @examples
 gwis_report <- function(exposure, hrc_version, covariates) {
-  rmarkdown::render('~/git/figi/results.Rmd',
+  rmarkdown::render('~/git/figi/main_effects/main_effects.Rmd',
+                    params = list(exposure = exposure, 
+                                  hrc_version = hrc_version,
+                                  covariates = covariates, 
+                                  path = glue("{path}/output/posthoc/")), 
+                    output_file = glue('~/Dropbox/FIGI/Results/{exposure}_main_effects.html'))
+}
+
+
+
+
+
+
+# convenience functions to output markdown reports
+#' gwis_report
+#'
+#' @param exposure 
+#' @param hrc_version 
+#' @param covariates 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+gwis_report <- function(exposure, hrc_version, covariates) {
+  rmarkdown::render('~/git/figi/gwis/results.Rmd',
                     params = list(exposure = exposure, 
                                   hrc_version = hrc_version,
                                   covariates = covariates), 
@@ -31,3 +57,7 @@ posthoc_report <- function(exposure) {
                     params = list(exposure = exposure), 
                     output_file = glue('~/Dropbox/FIGI/Results/{exposure}_posthoc.html'))
 }
+
+
+
+
