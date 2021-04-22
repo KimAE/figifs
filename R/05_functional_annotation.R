@@ -20,6 +20,9 @@ output_chromatin <- function(exposure, hrc_version, snp, path_in, path_out) {
     system(glue("bash ../functional_annotation/crc-h3k27ac.sh {input_file} {path_out}"))
     system(glue("bash ../functional_annotation/finucane.sh {input_file} {path_out}"))
     system(glue("perl ../functional_annotation/summarize-overlap-regulatory-region.pl {input_file} {path_out} {file_full}"))
+
+    # return file for targets workflow
+    return(glue("{path_out}/figi_{exposure}_{hrc_version}_chr{snp_sep[1]}_{snp_sep[2]}_chromatin.tsv"))
 }
 
 
@@ -52,6 +55,9 @@ format_vep <- function(exposure, hrc_version, snp, path_in, path_out) {
     # output tsv formatted for VEP
     tsv_new <- glue("{path_out}/figi_{exposure}_{hrc_version}_chr{chr}_{bp}.tsv")
     system(glue("perl -lane '@F=split(/\t/); $snp=$F[3]; ($chr, $pos, $ref, $alt) = split(/-/,$snp); print \"$chr\t$pos\t$pos\t$ref/$alt\t+\t$snp\";' {bed_new} | sort -gk1 -gk2 - > {tsv_new}"))
+
+    # return file for targets workflow
+    return(glue("{path_out}/figi_{exposure}_{hrc_version}_chr{chr}_{bp}.tsv"))
 }
 
 
@@ -74,6 +80,9 @@ output_eqtl_gtex <- function(exposure, hrc_version, snp,  path_out) {
     system(glue("perl ../functional_annotation/01-eqtl-overlap.pl {eqtl} {path_out}")) 
     system(glue("perl ../functional_annotation/02-parse-eqtl-overlap-results.pl {eqtl}"))
     system(glue("perl ../functional_annotation/03-summarize-eqtl-overlap.pl {eqtl}"))
+
+    # return file for targets workflow
+    return(glue("{path_out}/figi_{exposure}_{hrc_version}_chr{chr}_{bp}_eQTL_overlap_summary.tsv"))
 }
 
 
