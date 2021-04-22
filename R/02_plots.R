@@ -398,11 +398,11 @@ create_manhattanplot_ramwas <- function(data, exposure, statistic, hrc_version, 
 #' @export
 #'
 #' @examples
-output_expectation_bin_snps <- function(data, exposure, hrc_version, stats_step1, step1_source = "figi", path, bin, sizeBin0 = 5) {
+output_expectation_bin_snps <- function(data, exposure, hrc_version, stats_step1, step1_source = "figi", path, bin, sizeBin0 = 5, m = 1000000) {
 
     # ---- create bin numbers based on step1 statistic ---- #
     # expectation assumption (1 million tests)
-    m = 1000000
+    # m = 1000000
     # (fyi number of bins equal 18 with one million tests)
     nbins = floor(log2(m/sizeBin0 + 1))
     nbins = if (m > sizeBin0 * 2^nbins) {nbins = nbins + 1}
@@ -410,7 +410,7 @@ output_expectation_bin_snps <- function(data, exposure, hrc_version, stats_step1
     sizeBin_endpt = cumsum(sizeBin)
 
     # step 1 bin p value cutoffs (see expectation based slides)
-    alphaBin_step1 = sizeBin_endpt/1000000
+    alphaBin_step1 = sizeBin_endpt/m
     alphaBin_step1_cut <- c(-Inf, alphaBin_step1, Inf)
 
     # create data.frame with expectation based partition assignment
@@ -592,7 +592,7 @@ create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1,
 #' @export
 #'
 #' @examples
-create_twostep_plot_eh <- function(data, exposure, covars, binsToPlot, stats_step1, sizeBin0, alpha, path, meff_method = "", number_of_snps, number_of_tests) { 
+create_twostep_plot_eh <- function(data, exposure, covars, binsToPlot, stats_step1, sizeBin0, alpha, path, m = 1000000, meff_method = "", number_of_snps, number_of_tests) { 
 
     # ------- Some Functions ------- #
     # plot title and file name
@@ -614,7 +614,7 @@ create_twostep_plot_eh <- function(data, exposure, covars, binsToPlot, stats_ste
     # ------- create working dataset ------- #
     # assign SNPs to bins
     # expectation assumption
-    m = 1000000 
+    # m = 1000000 
     # (number of bins should always equal 18 with one million tests)
     nbins = floor(log2(m/sizeBin0 + 1))
     nbins = if (m > sizeBin0 * 2^nbins) {nbins = nbins + 1} 
@@ -622,7 +622,7 @@ create_twostep_plot_eh <- function(data, exposure, covars, binsToPlot, stats_ste
     sizeBin = c(sizeBin0 * 2^(0:(nbins-2)), sizeBin0 * (2^(nbins-1)) )
     sizeBin_endpt = cumsum(sizeBin) 
     # step 1 bin p value cutoffs (see expectation based slides)
-    alphaBin_step1 = sizeBin_endpt/1000000
+    alphaBin_step1 = sizeBin_endpt/m
     alphaBin_step1_cut <- c(-Inf, alphaBin_step1, Inf)
 
     tmp <- data %>%
@@ -895,7 +895,12 @@ meff_liji <- function(dat) {
 #' simplem_wrap
 #' 
 #' wrapper to create twostep plots with expectation based binning + adjustment of step2 tests by bin specific effective number of tests
-#' the name might be confusing since simplem is the gao method, but this does both gao and liji for now
+#' the name might be confusing since simplem is the gao method but don't change it at this point. 
+#' 
+#' I modified the code to rely on the poolr package. I think for Gao method, it uses default window size (which is ok)
+#' Also, instead of calculating r^2 per chromosome, now perform combined for all SNPs. 
+#' 
+#' Also modified code to accommodate different assumed M for expectation based hybrid plots
 #'
 #' @param data Processed GxEScanR output
 #' @param exposure string
@@ -910,56 +915,67 @@ meff_liji <- function(dat) {
 #' @export
 #'
 #' @examples
-simplem_wrap <- function(data, exposure, covariates, simplem_step1_statistic, path, meff_method, gwas_snps=NULL, gao_pca_cutoff = 0.995) {
+simplem_wrap <- function(data, exposure, hrc_version, covariates, simplem_step1_statistic, path, meff_method, gwas_snps=NULL, gao_pca_cutoff = 0.995) {
 
-
-    # FYI - glue is not regex friendly? 
+    # create list of bin SNP dosage data.frames
+    # (currently only plotting 7 bins)
     # FYI - glue is NOT regex friendly
     files_input <- mixedsort(list.files(path, pattern = paste0(paste0("expectation_based_snplist_", exposure, "_", hrc_version, "_", simplem_step1_statistic, "_bin"), "(?:.+)", "output.rds"), full.names = T)) 
     files_list <- map(files_input, ~ readRDS(.x)) 
 
-    tmp_function <- function(zz, gwas_snps) {
-	zznames <- substr(names(zz), 1, nchar(names(zz)) - 4)
-	zz_index <- !zznames %in% gwas_snps
-	zz_out <- zz[, zz_index]
-	return(zz_out)
+    # ------------------------------------------- #
+    # remove GWAS SNPs if provided
+    # function to filter GWAS SNPs if provided
+    remove_snps <- function(zz, gwas_snps) {
+        zznames <- substr(names(zz), 1, nchar(names(zz)) - 4)
+        zz_index <- !zznames %in% gwas_snps
+        zz_out <- zz[, zz_index]
+        return(zz_out)
     }
 
-    # filter out GWAS SNPs if you provide them (be careful of the SNP name format, in this case it's just chr:bp)
+    # filter out GWAS SNPs if provided
+    # be careful - make sure gwas_snps is provided as chr:bp - so i can change it to Xchr.bp
     if(!is.null(gwas_snps)) {
-	files_list <- map(files_list, ~ tmp_function(.x, gwas_snps))
+        # format
+        gwas_snps <- paste0("X", gsub(":", ".", gwas_snps))
+        # remove from bins
+	    files_list <- map(files_list, ~ remove_snps(.x, gwas_snps))
+        # remove from data
+        data <- data %>%
+            filter(!SNP2 %in% gwas_snps)
     }
+
+    # output correlation matrix for each bin (overall, not by chromosome)
+    snps_cor <- map(files_list, ~ cor(.x[,-1])) # '-1' to remove vcfid column
+    # ------------------------------------------ #
+
+    number_of_snps <- map_int(files_list, ~ ncol(.x[,-1]))
 
     # calculate effective number of tests, output results in vector
     if(meff_method == "gao") {
-	number_of_snps <- map_int(files_list, ~ ncol(.x)) - 1 # -1 to remove vcfid column
-	number_of_tests <- map_int(files_list, ~ meff_r(dat = .x, PCA_cutoff = gao_pca_cutoff, fixLength = 150))
-    } else if (meff_method == "liji") {
-	number_of_snps <- map_int(files_list, ~ ncol(.x)) - 1 # -1 to remove vcfid column
-	number_of_tests <- round(map_dbl(files_list, ~ meff_liji(dat = .x)))
-    }
-
-    #number_of_snps <- map_int(files_list, ~ ncol(.x)) - 1 # -1 to remove vcfid column 
-    #number_of_tests <- map_int(files_list, ~ meff_r(dat = .x, PCA_cutoff = 0.995, fixLength = 150))
-
-    if(meff_method == "gao") {
-	meff_method_out = glue("gao_{gao_pca_cutoff}")
+        number_of_tests <- map_int(snps_cor, ~ poolr::meff(R = .x, method = meff_method, C = gao_pca_cutoff))
     } else {
-	meff_method_out = meff_method
+	    number_of_tests <- map_int(snps_cor, ~ poolr::meff(R = .x, method = meff_method))
+
+    # helper for writing filename
+    if(meff_method == "gao") {
+	    meff_method_out = glue("gao_{gao_pca_cutoff}")
+    } else {
+	    meff_method_out = meff_method
     }
 
-    # call create_twostep_plot_eh. 
+    # call create_twostep_plot_eh (plotting function)
     output_filename <- create_twostep_plot_eh(data,
-	exposure = exposure,
-	covars = covariates,
-	binsToPlot = 7,
-	stats_step1 = simplem_step1_statistic,
-	sizeBin0 = 5,
-	alpha = 0.05,
-	path = "output",
-	meff_method = meff_method_out, # really just for the file name label at this point
-	number_of_snps = number_of_snps,
-	number_of_tests = number_of_tests)
+	    exposure = exposure,
+	    covars = covariates,
+	    binsToPlot = 7,
+	    stats_step1 = simplem_step1_statistic,
+	    ksizeBin0 = 5,
+	    alpha = 0.05,
+	    path = "output",
+	    meff_method = meff_method_out, # for the file name text
+	    number_of_snps = number_of_snps,
+	    number_of_tests = number_of_tests)
    
    return(output_filename) 
 
