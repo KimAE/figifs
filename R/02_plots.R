@@ -3,155 +3,6 @@
 #=============================================================================#
 
 
-
-
-# -------- create descriptive analysis output -------- #
-
-# get_counts_outcome_by_group <- function(dat, outcome, group) {
-# 
-#     # get counts for rmeta function
-#     dat <- dat %>%
-# 	dplyr::group_by( .data[[outcome]], .data[[group]] ) %>%
-# 	dplyr::summarize(count = dplyr::n()) %>%
-# 	tidyr::spread(key = {{ outcome }}, value = count) %>%
-# 	dplyr::rename(Control = `0`, Case = `1`) %>%
-# 	dplyr::mutate(N = Control + Case)
-#     return(dat)
-# }
-
-# 
-# # meta analyses
-# 
-# create_forest_plot <- function(exposure, covariates, hrc_version, path, forest_height = 17, forest_width = 8.5, funnel_height = 8, funnel_width = 8.5, strata = 'all') {
-# 
-#     # prepare dataset
-#     # note the location of these files. They're input files I created before running scans
-#     exposure_subset <- readRDS(glue("data/FIGI_{hrc_version}_gxeset_{exposure}_basic_covars_glm.rds")) %>% 
-# 	dplyr::pull(vcfid)
-# 
-#     glm_dat <- readRDS(glue("/project/dconti_250/FIGI_EpiData/FIGI_{hrc_version}_gxeset_analysis_data_glm.rds")) %>% 
-# 	dplyr::filter(vcfid%in% exposure_subset)
-# 
-#     # stratified meta-analysis plots
-#     # make sure study_gxe is not in the covariates vector
-#     covariates <- covariates[which(covariates != 'study_gxe')]
-# 
-#     if (strata == 'female') {
-# 	# subset_vector <- glm_dat$sex == 0
-# 	glm_dat <- dplyr::filter(glm_dat, sex == 0)
-# 	covariates <- covariates[which(!covariates %in% c('sex'))]
-#     } else if (strata == 'male') {
-# 	glm_dat <- dplyr::filter(glm_dat, sex == 1)
-# 	# subset_vector <- glm_dat$sex == 1
-# 	covariates <- covariates[which(!covariates %in% c('sex'))]
-#     } else if (strata == 'proximal') {
-# 	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'proximal' | glm_dat$outcome == 0)
-# 	# subset_vector <- glm_dat$cancer_site_sum2 == 'proximal' | glm_dat$outcome == 0 
-#     } else if (strata == 'distal') {
-# 	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'distal' | glm_dat$outcome == 0)
-# 	# subset_vector <- glm_dat$cancer_site_sum2 == 'distal' | glm_dat$outcome == 0 
-#     } else if (strata == 'rectal') { 
-# 	glm_dat <- dplyr::filter(glm_dat, cancer_site_sum2 == 'rectal' | glm_dat$outcome == 0)
-# 	# subset_vector <- glm_dat$cancer_site_sum2 == 'rectal' | glm_dat$outcome == 0 
-#     }
-# 
-#     # some subsets generate empty cells, need to remove them
-#     drops <- data.frame(table(glm_dat$study_gxe, glm_dat$outcome, glm_dat[, exposure])) %>% 
-# 	dplyr::filter(Freq == 0) %>% 
-# 	dplyr::pull(Var1) %>% 
-# 	unique(.)
-# 
-#     glm_dat <- glm_dat %>% 
-# 	dplyr::filter(!study_gxe %in% drops)
-# 
-#     # create model term
-#     # model_formula <- Reduce(paste, deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome')))
-#     model_formula <- deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome'))
-# 
-#     # create study_design data.frame
-#     study_design <- glm_dat %>%
-# 	dplyr::select(study_gxe, study_design) %>%
-# 	filter(!duplicated(.)) %>%
-# 	arrange(study_gxe)
-# 
-#     glm_out <- glm_dat %>%
-# 	tidyr::nest(data = -study_gxe) %>% 
-# 	dplyr::mutate(
-# 	    fit = purrr::map(data, ~ glm(model_formula, data = .x, family = 'binomial')),
-# 	    tidied = purrr::map(fit, ~ tidy(.x)), 
-# 	    quality = purrr::map(fit, ~ glance(.x))
-# 	    ) %>% 
-# 	dplyr::select(-data, -fit) %>% 
-# 	tidyr::unnest(tidied) %>% tidyr::unnest(quality) %>% 
-# 	dplyr::filter(grepl(exposure, term),
-# 	    null.deviance > quantile(null.deviance, 0.01)) %>% 
-# 	dplyr::arrange(study_gxe)
-# 
-#     # include study sample sizes and study design information
-#     meta_input <- get_counts_outcome_by_group(glm_dat, 'outcome', 'study_gxe') %>%
-# 	mutate(study_gxe = as.character(study_gxe)) %>% 
-# 	full_join(study_design, 'study_gxe') %>% 
-# 	inner_join(glm_out, 'study_gxe')
-# 
-#     results_meta <- meta::metagen(estimate,
-# 	std.error,
-# 	data=meta_input,
-# 	studlab=paste(study_gxe),
-# 	comb.fixed = FALSE,
-# 	comb.random = TRUE,
-# 	method.tau = "SJ",
-# 	hakn = TRUE,
-# 	prediction=TRUE,
-# 	sm="OR",
-# 	byvar = study_design)
-# 
-#     # plot_title = glue(strata, "\n{model_formula}", .na = "All")
-#     plot_title = glue(strata, " (N=", sum(glm_out$nobs), ")", "\n{model_formula}")
-# 
-#     png(glue("{path}/forest_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"), height = forest_height, width = forest_width, units = 'in', res = 150)
-#     meta::forest(results_meta,
-# 	layout = "JAMA",
-# 	# text.predict = "95% CI",
-# 	# col.predict = "black",
-# 	leftcols = c("studlab", "Control", "Case", "N", "effect", "ci", "w.random"),
-# 	digits.addcols=0,
-# 	study.results=T,
-# 	prediction = F,
-# 	col.random = 'red', 
-# 	xlim = c(0.25, 4))
-#     grid.text(plot_title, 0.5, .98, gp=gpar(cex=1))
-#     dev.off()
-# 
-#     png(glue("{path}/funnel_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"), height = funnel_height, width = funnel_width, units = 'in', res = 150)
-#     meta::funnel(results_meta, sm="OR", studlab = T, pos = 4, col.random = 'red')
-#     dev.off()
-# 
-#     #return(glue("{path}/forest_plot_{exposure}_{hrc_version}_", glue_collapse(covariates, "_"), "_{strata}.png"))
-# }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #' qq_ramwas_edit
 #' 
 #' I modified the ramwas qq function to include lambda1000 estimates in the output
@@ -330,7 +181,7 @@ create_manhattanplot_ramwas <- function(data, exposure, statistic, hrc_version, 
     # output data.frame of significant results
   
     if(statistic == 'chiSqGxE') {
-      sig_line = 5e-6
+      sig_line = 5e-8
     }  else {
       sig_line = sig_line
     }
@@ -456,7 +307,7 @@ output_expectation_bin_snps <- function(data, exposure, hrc_version, stats_step1
 #' @export
 #'
 #' @examples
-create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1, sizeBin0, alpha, path, filename_suffix = "") {
+create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1, sizeBin0, alpha, path, exclude_gwas = F, filename_suffix = "") {
 
     # ------- Functions ------- #
     # plot title and file name
@@ -476,8 +327,18 @@ create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1,
     }
 
     # ------- create working dataset ------- #
+
+    if(exclude_gwas == T) {
+        gwas_snps <- readRDS("../data/conditioning_snps_v20200930_filter_GWAS_SNPS.rds")
+        # remove from data
+        data2 <- data %>%
+            dplyr::filter(!SNP2 %in% gwas_snps)
+    } else {
+       data2 <- data
+    }
+
     # assign SNPs to bins
-    m = nrow(data) 
+    m = nrow(data2) 
     nbins = floor(log2(m/sizeBin0 + 1)) 
     nbins = if (m > sizeBin0 * 2^nbins) {nbins = nbins + 1} 
     sizeBin = c(sizeBin0 * 2^(0:(nbins-2)), m - sizeBin0 * (2^(nbins-1) - 1) ) 
@@ -491,7 +352,7 @@ create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1,
     alphaBin_dat <- rep(alphaBin, rep_helper)
 
     # prep data
-    tmp <- data %>% 
+    tmp <- data2 %>% 
 	dplyr::mutate(step1p = .data[[paste0(stats_step1, "_p")]],
 	    step2p = chiSqGxE_p) %>% 
     dplyr::arrange(step1p) %>% 
@@ -518,7 +379,13 @@ create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1,
     last.sig = alphaBin[binsToPlot]
 
     # plots
-    png(glue("{path}/twostep_{exposure}_{hrc_version}_{stats_step1}.png"), height = 720, width = 1280)
+    if(exclude_gwas == T) {
+        png_filename_prefix = glue("{path}/twostep_{exposure}_{hrc_version}_{stats_step1}_nogwas")
+    } else {
+        png_filename_prefix = glue("{path}/twostep_{exposure}_{hrc_version}_{stats_step1}")
+    }
+
+    png(glue("{png_filename_prefix}.png"), height = 720, width = 1280)
     color <- rep(c("#377EB8","#4DAF4A"),100)
     par(mar=c(6, 7, 6, 3))
 
@@ -559,11 +426,10 @@ create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1,
 
     dev.off()
 
-    saveRDS(significant_hits, file = glue("{path}/twostep_{exposure}_{hrc_version}_{stats_step1}_df.rds"))
-    return(glue("{path}/twostep_{exposure}_{hrc_version}_{stats_step1}.png"))
+    saveRDS(significant_hits, file = glue("{png_filename_prefix}_df.rds"))
+    return(glue("{png_filename_prefix}.png"))
 
 }
-
 
 
 
@@ -611,6 +477,7 @@ create_twostep_plot_eh <- function(data, exposure, covars, binsToPlot, stats_ste
 	    mutate(mapinfo = seq(unique(bin_number) - 1 + 0.1, unique(bin_number) - 1 + 0.9, length.out = nrow(.)))
     }
 
+
     # ------- create working dataset ------- #
     # assign SNPs to bins
     # expectation assumption
@@ -632,21 +499,21 @@ create_twostep_plot_eh <- function(data, exposure, covars, binsToPlot, stats_ste
     dplyr::arrange(step1p)
 
 
-# add step2 significance threshold, adjusted for effective number of tests
-# make sure SNPs are sorted by step1p!
-meff <- c(number_of_tests[1:binsToPlot])
-alphaBin_step2_simpleM = alpha * 2 ^ -(1:binsToPlot) / meff
-rep_helper <- c(table(tmp[, 'bin_number']))[as.character(1:binsToPlot)]
-rep_helper <- replace(rep_helper, is.na(rep_helper), 0)
-
-# index_helper <- as.numeric(names(rep_helper[!is.na(names(rep_helper))]))
-index_helper <- names(rep_helper[!is.na(names(rep_helper))])
-
-step2p_sig_simpleM <- rep(alphaBin_step2_simpleM, rep_helper)
-
-# ------- Plot ------- #
-
-tmp_plot <- tmp %>%
+    # add step2 significance threshold, adjusted for effective number of tests
+    # make sure SNPs are sorted by step1p!
+    meff <- c(number_of_tests[1:binsToPlot])
+    alphaBin_step2_simpleM = alpha * 2 ^ -(1:binsToPlot) / meff
+    rep_helper <- c(table(tmp[, 'bin_number']))[as.character(1:binsToPlot)]
+    rep_helper <- replace(rep_helper, is.na(rep_helper), 0)
+    
+    # index_helper <- as.numeric(names(rep_helper[!is.na(names(rep_helper))]))
+    index_helper <- names(rep_helper[!is.na(names(rep_helper))])
+    
+    step2p_sig_simpleM <- rep(alphaBin_step2_simpleM, rep_helper)
+    
+    # ------- Plot ------- #
+    
+    tmp_plot <- tmp %>%
     dplyr::filter(bin_number <= binsToPlot) %>%
     dplyr::mutate(step2p_sig = step2p_sig_simpleM,
 	log_step2p_sig = -log10(step2p_sig), 
@@ -736,162 +603,6 @@ tmp_plot <- tmp %>%
 
 
 
-
-
-
-#' Meff_PCA
-#' 
-#' from Gao et al 
-#'
-#' @param eigenValues 
-#' @param percentCut 
-#'
-#' @return
-#' @export
-#'
-#' @examples
-Meff_PCA <- function(eigenValues, percentCut){
-    totalEigenValues <- sum(eigenValues)
-    myCut <- percentCut*totalEigenValues
-    num_Eigens <- length(eigenValues)
-    myEigenSum <- 0
-    index_Eigen <- 0
-
-    for(i in 1:num_Eigens){
-	if(myEigenSum <= myCut){
-	    myEigenSum <- myEigenSum + eigenValues[i]
-	    index_Eigen <- i
-	}
-	else{
-	    break
-	}
-    }	
-    return(index_Eigen)
-}
-
-
-#' inferCutoff
-#' 
-#' from Gao et al
-#'
-#' @param dt_My 
-#' @param PCA_cutoff 
-#'
-#' @return
-#' @export
-#'
-#' @examples
-inferCutoff <- function(dt_My, PCA_cutoff){
-    CLD <- cor(dt_My)
-    eigen_My <- eigen(CLD)
-
-    # PCA approach
-    eigenValues_dt <- abs(eigen_My$values)
-    Meff_PCA_gao <- Meff_PCA(eigenValues_dt, PCA_cutoff)
-    return(Meff_PCA_gao)
-}
-
-
-#' meff_r
-#' 
-#' function to estimate effective number of tests using the Gao et al method (Meff)
-#'
-#' @param dat matrix of dosages
-#' @param PCA_cutoff numeric - paper recommends 0.995, but we're trying different values
-#' @param fixLength numeric - arbitrary set to 150
-#'
-#' @return
-#' @export
-#'
-#' @examples
-meff_r <- function(dat, PCA_cutoff = 0.995, fixLength = 150) {
-
-    # separate data.frame into chromosome specific lists of SNP vectors 
-    # assume that columns are in chr:bp order (they should be if input vector for binarydosage is ordered)
-    dat_colnames <- colnames(dat)[!colnames(dat) %in% "vcfid"]
-    tmp1 <- sapply(dat_colnames, function(x) strsplit(x, split = "\\."))
-    tmp2 <- sapply(tmp1, function(x) as.numeric(gsub("X", "", x[[1]][1])))
-    snps_list <- split(dat_colnames, tmp2) # names of SNPs by chromosome
-
-    # function to apply Meff method to chromosome specific lists of SNP vectors  (`snps_list`)
-    run_meff <- function(snps_vector) {
-
-	workdata <- dplyr::select(dat, vcfid, all_of(snps_vector)) %>% 
-	    pivot_longer(-vcfid, ) %>% 
-	    pivot_wider(names_from = vcfid, values_from = value) %>% 
-	    separate(name, into = c("chr", "bp", "ref", "alt"), remove = F) %>% 
-	    mutate(chr = as.numeric(gsub("X", "", chr)), 
-		bp = as.numeric(bp)) %>% 
-	    arrange(chr, bp) %>% 
-	    dplyr::select(-chr, -bp, -ref, -alt, -name)
-
-	numLoci <- length(pull(workdata, 1))
-
-	simpleMeff <- NULL
-
-	fixLength <- fixLength
-	i <- 1
-	myStart <- 1
-	myStop <- 1
-	iteration <- 0
-
-	while(myStop < numLoci){
-	    myDiff <- numLoci - myStop 
-	    if(myDiff <= fixLength) break
-
-	    myStop <- myStart + i*fixLength - 1
-	    snpInBlk <- t(workdata[myStart:myStop, ])
-	    MeffBlk <- inferCutoff(snpInBlk, PCA_cutoff)
-	    simpleMeff <- c(simpleMeff, MeffBlk)
-	    myStart <- myStop+1
-	    iteration <- iteration+1
-	    print(iteration)
-	}
-
-	snpInBlk <- t(workdata[myStart:numLoci, ])
-	MeffBlk <- inferCutoff(snpInBlk, PCA_cutoff)
-	simpleMeff <- c(simpleMeff, MeffBlk)
-
-	return(sum(simpleMeff))
-    }
-
-    # apply `run_meff` function here, return integer
-    eff_tests_list <- map(snps_list, run_meff)
-    return(do.call(sum, eff_tests_list))
-
-}
-
-
-
-
-
-
-#' meff_liji
-#' 
-#' method from Li and Ji paper 
-#'
-#' @param dat matrix of dosages
-#'
-#' @return
-#' @export
-#'
-#' @examples
-meff_liji <- function(dat) {
-    dat <- dat[, -1]
-    #dat <- t(dat)
-    S <- cor(dat)
-    lambda <- eigen(S)$values
-    # lambda
-    y <- abs(lambda)
-    f <- (y >= 1) + (y - floor(y))
-    #sum(f)
-
-    return(sum(f))
-}
-
-
-
-
 #' simplem_wrap
 #' 
 #' wrapper to create twostep plots with expectation based binning + adjustment of step2 tests by bin specific effective number of tests
@@ -915,71 +626,96 @@ meff_liji <- function(dat) {
 #' @export
 #'
 #' @examples
-simplem_wrap <- function(data, exposure, hrc_version, covariates, simplem_step1_statistic, path, meff_method, gwas_snps=NULL, gao_pca_cutoff = 0.995) {
+simplem_wrap <- function(data, exposure, hrc_version, covariates, simplem_step1_statistic, path, meff_method, exclude_gwas = F, gao_pca_cutoff = 0.995) {
 
     # create list of bin SNP dosage data.frames
-    # (currently only plotting 7 bins)
-    # FYI - glue is NOT regex friendly
+    # FYI - 'glue' doesn't seem regex friendly
     files_input <- mixedsort(list.files(path, pattern = paste0(paste0("expectation_based_snplist_", exposure, "_", hrc_version, "_", simplem_step1_statistic, "_bin"), "(?:.+)", "output.rds"), full.names = T)) 
     files_list <- map(files_input, ~ readRDS(.x)) 
 
     # ------------------------------------------- #
-    # remove GWAS SNPs if provided
-    # function to filter GWAS SNPs if provided
-    remove_snps <- function(zz, gwas_snps) {
+    # function to filter GWAS SNPs if desired
+    remove_snps <- function(zz, gwas_snps_vector) {
         zznames <- substr(names(zz), 1, nchar(names(zz)) - 4)
-        zz_index <- !zznames %in% gwas_snps
+        zz_index <- !zznames %in% gwas_snps_vector
         zz_out <- zz[, zz_index]
         return(zz_out)
     }
 
     # filter out GWAS SNPs if provided
     # be careful - make sure gwas_snps is provided as chr:bp - so i can change it to Xchr.bp
-    if(!is.null(gwas_snps)) {
-        # format
-        gwas_snps <- paste0("X", gsub(":", ".", gwas_snps))
-        # remove from bins
-	    files_list <- map(files_list, ~ remove_snps(.x, gwas_snps))
-        # remove from data
-        data <- data %>%
-            filter(!SNP2 %in% gwas_snps)
-    }
+    if(exclude_gwas == T) {
+	# GWAS SNPs to remove (vector of chr:bp)
+	gwas_snps <- readRDS("../data/conditioning_snps_v20200930_filter_GWAS_SNPS.rds")
+	gwas_snps_v2 <- paste0("X", gsub(":", ".", gwas_snps))
 
-    # output correlation matrix for each bin (overall, not by chromosome)
+	# remove from bins
+	files_list <- map(files_list, ~ remove_snps(.x, gwas_snps_v2))
+
+	# remove from data
+	data2 <- data %>%
+	    dplyr::filter(!SNP2 %in% gwas_snps)
+    } else {
+       data2 <- data
+    }    
+
+    # output correlation matrix for each bin 
+    # overall, no longer doing it by chromosome
     snps_cor <- map(files_list, ~ cor(.x[,-1])) # '-1' to remove vcfid column
+    
     # ------------------------------------------ #
-
     number_of_snps <- map_int(files_list, ~ ncol(.x[,-1]))
 
     # calculate effective number of tests, output results in vector
     if(meff_method == "gao") {
-        number_of_tests <- map_int(snps_cor, ~ poolr::meff(R = .x, method = meff_method, C = gao_pca_cutoff))
+        number_of_tests <- map_dbl(snps_cor, ~ poolr::meff(R = .x, method = meff_method, C = gao_pca_cutoff))
+    } else if(meff_method == "lea") {
+	number_of_tests <- map_dbl(snps_cor, ~ meff_lea(s = .x))
     } else {
-	    number_of_tests <- map_int(snps_cor, ~ poolr::meff(R = .x, method = meff_method))
+	number_of_tests <- map_dbl(snps_cor, ~ poolr::meff(R = .x, method = meff_method))
+    }
 
     # helper for writing filename
     if(meff_method == "gao") {
-	    meff_method_out = glue("gao_{gao_pca_cutoff}")
+	meff_method_out = glue("gao_{gao_pca_cutoff}")
     } else {
-	    meff_method_out = meff_method
+	meff_method_out = meff_method
     }
 
-    # call create_twostep_plot_eh (plotting function)
-    output_filename <- create_twostep_plot_eh(data,
-	    exposure = exposure,
-	    covars = covariates,
-	    binsToPlot = 7,
-	    stats_step1 = simplem_step1_statistic,
-	    ksizeBin0 = 5,
-	    alpha = 0.05,
-	    path = "output",
-	    meff_method = meff_method_out, # for the file name text
-	    number_of_snps = number_of_snps,
-	    number_of_tests = number_of_tests)
-   
-   return(output_filename) 
+    # helper for writing 'gwas' if you filtered gwas 
+    if(exclude_gwas) {
+	meff_method_out = glue(meff_method_out, "_excludeGWAS")
+    }
 
+    # call plotting function
+    output_filename <- create_twostep_plot_eh(
+            data = data2,
+            exposure = exposure,
+            covars = covariates,
+            binsToPlot = 7,
+            stats_step1 = simplem_step1_statistic,
+            sizeBin0 = 5,
+            alpha = 0.05,
+            path = "output",
+            meff_method = meff_method_out, # for the file name text
+            number_of_snps = number_of_snps,
+            number_of_tests = number_of_tests)
+
+    return(output_filename)
 }
+
+
+
+# function to apply lea method (the other li)
+meff_lea <- function(s) {
+    # s is cor(snps)
+    y <- eigen(s)
+    out <- floor(ncol(s) - sum((y$values > 1) * (y$values - 1)))
+    return(out)
+}
+
+
+
 
 
 
@@ -991,29 +727,16 @@ simplem_wrap <- function(data, exposure, hrc_version, covariates, simplem_step1_
 #------------------------------------------------------------------------------#
 #------------------------------------------------------------------------------#
 
-
-# this function will get plink ld for the given hit
-# snp is default format of chr:bp:ref:alt
-
-# snp <- "12:50610976:C:T"
-# ld_window = 500000
-# eur_path = "/scratch/andreeki/locuszoom/data/1000G/genotypes/2017-04-10/EUR"
-# eur_path = "/scratch/andreeki/locuszoom/data/1000G/genotypes/2014-10-14/EUR"
-# 
-# wtf <- unlist(strsplit(snp, ':'))
-# chr <- wtf[1]
-# bp <- as.numeric(wtf[2])
-# ref <- wtf[3]
-# alt <- wtf[4]
-
-
-
-
-output_functional_plot <- function(snp, ld_window = 500000, plot_window = 50000) {
+output_functional_plot <- function(snp, ld_window = 500000, plot_window = 50000, panel = "kg") {
 
   # path for plink files (LD calculation) and writing out bed, ini, pdf, and png files (folder contains all functional annotation stuff)
   # note that the tmp1.ini and tmp2.ini are hardcoded (just find a permanent place for them)
-  eur_path = "/scratch/andreeki/locuszoom/data/1000G/genotypes/2014-10-14/EUR"
+  if(panel == "kg") {
+      eur_path = "/scratch/andreeki/locuszoom/data/1000G/genotypes/2014-10-14/EUR"
+  } else if(panel == "hrc") {
+      eur_path = "/scratch/andreeki/locuszoom/data/1000G/genotypes/2014-10-14/ASN"
+  }
+
   wdir = "output/functional_plot"
   tdir = "../data"
 
@@ -1112,7 +835,7 @@ output_functional_plot <- function(snp, ld_window = 500000, plot_window = 50000)
 #------------------------------------------------------------------------------#
 #------------------------------------------------------------------------------#
 
-output_locuszoom_plot <- function(snp, exposure, hrc_version, statistic, plot_window = 500, path) {
+output_locuszoom_plot <- function(snp, exposure, hrc_version, statistic, plot_window = 500, path, panel = 'kg') {
   
   # path for plink files (LD calculation) and writing out bed, ini, pdf, and png files (folder contains all functional annotation stuff)
   # note that the tmp1.ini and tmp2.ini are hardcoded (just find a permanent place for them)
@@ -1140,8 +863,14 @@ output_locuszoom_plot <- function(snp, exposure, hrc_version, statistic, plot_wi
   tmp1 <- c(snpid, "", "white")
   gwas_loci <- rbind(gwas_loci_tmp, tmp1)
   write.table(gwas_loci, file = glue("{wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.txt"), quote = F, row.names = F, sep = "\t")
-  
-  system(glue("/scratch/andreeki/locuszoom/bin/locuszoom --snpset NULL --metal {pval_file} --pop EUR --build hg19 --source 1000G_Nov2014 --refsnp {snpid} --flank {plot_window}kb --prefix {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}  --no-date title='{exposure} x {snpid} - {statistic}' signifLine=7.30103 signifLineColor='blue' --denote-markers-file {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.txt"))
+ 
+  if(panel == 'kg') {
+      pop = "EUR"
+  } else if (panel == 'hrc') {
+      pop = "ASN"
+  }
+
+  system(glue("/scratch/andreeki/locuszoom/bin/locuszoom --snpset NULL --metal {pval_file} --pop {pop} --build hg19 --source 1000G_Nov2014 --refsnp {snpid} --flank {plot_window}kb --prefix {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}  --no-date title='{exposure} x {snpid} - {statistic}' signifLine=7.30103 signifLineColor='blue' --denote-markers-file {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.txt"))
   
   system(glue("gs -o {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.png -sDEVICE=png16m -dTextAlphaBits=4 -r300 -dLastPage=1 {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}/chr{chr}_{bp-(plot_window*1000)}-{bp+(plot_window*1000)}.pdf"))
   
