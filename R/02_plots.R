@@ -329,7 +329,7 @@ create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1,
     # ------- create working dataset ------- #
 
     if(exclude_gwas == T) {
-        gwas_snps <- readRDS("../data/conditioning_snps_v20200930_filter_GWAS_SNPS.rds")
+        gwas_snps <- readRDS("../data/conditioning_snps_v20200930_filter_GWAS_SNPS_1000k.rds")
         # remove from data
         data2 <- data %>%
             dplyr::filter(!SNP2 %in% gwas_snps)
@@ -646,7 +646,7 @@ simplem_wrap <- function(data, exposure, hrc_version, covariates, simplem_step1_
     # be careful - make sure gwas_snps is provided as chr:bp - so i can change it to Xchr.bp
     if(exclude_gwas == T) {
 	# GWAS SNPs to remove (vector of chr:bp)
-	gwas_snps <- readRDS("../data/conditioning_snps_v20200930_filter_GWAS_SNPS.rds")
+	gwas_snps <- readRDS("../data/conditioning_snps_v20200930_filter_GWAS_SNPS_1000k.rds")
 	gwas_snps_v2 <- paste0("X", gsub(":", ".", gwas_snps))
 
 	# remove from bins
