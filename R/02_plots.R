@@ -727,7 +727,7 @@ meff_lea <- function(s) {
 #------------------------------------------------------------------------------#
 #------------------------------------------------------------------------------#
 
-output_functional_plot <- function(snp, ld_window = 500000, plot_window = 50000, panel = "kg") {
+output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000, panel = "kg") {
 
   # path for plink files (LD calculation) and writing out bed, ini, pdf, and png files (folder contains all functional annotation stuff)
   # note that the tmp1.ini and tmp2.ini are hardcoded (just find a permanent place for them)
