@@ -1,0 +1,25 @@
+```{r include = F}
+qq_wrapper <- function(exposure, hrc_version, statistic, filename_suffix = "") {
+  knitr::include_graphics(glue("{path}/output/qq_{exposure}_{hrc_version}_{statistic}.png"))
+}
+```
+
+## G
+```{r , echo=FALSE, out.width = '100%'}
+qq_wrapper(exposure = params$exposure, hrc_version = params$hrc_version, statistic = 'chiSqG')
+```
+
+## GxE
+```{r , echo=FALSE, out.width = '100%'}
+qq_wrapper(exposure = params$exposure, hrc_version = params$hrc_version, statistic = 'chiSqGxE')
+```
+
+## 2DF
+```{r , echo=FALSE, out.width = '100%'}
+qq_wrapper(exposure = params$exposure, hrc_version = params$hrc_version, statistic = 'chiSq2df')
+```
+
+## 3DF
+```{r , echo=FALSE, out.width = '100%'}
+qq_wrapper(exposure = params$exposure, hrc_version = params$hrc_version, statistic = 'chiSq3df')
+```

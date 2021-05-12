@@ -1,5 +1,4 @@
-# FIGI results
+rmarkdown script for Jim/John linGxEScanR CHARGE Demo
 
-Functions for processing GxEScanR output and creating tables, plots, results reports. 
+(perhaps a starting point for making the results script more widely available)
 
-Meant to be used in conjunction with R 'targets' workflow package. Generally, the main difference is that functions will return a string referring to the filename, which targets package tracks. 

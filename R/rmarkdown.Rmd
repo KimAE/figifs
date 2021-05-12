@@ -1,0 +1,326 @@
+---
+date: '`r paste("Updated ", Sys.Date())`'
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 2
+    theme: "cosmo"
+title: "Results on simulated data for GxEScanR demo"
+---
+
+
+```{r setup, include=F}
+
+# rmarkdown options
+knitr::opts_chunk$set(echo = F, message = F, warning = F, error = F)
+
+# packages
+library(dplyr)
+library(qqman)
+# source('functions.R')
+
+# functions
+
+create_mapinfo <- function(y) {
+  y %>% 
+    arrange(CHR, BP) %>% 
+    mutate(mapinfo = seq(unique(bin_number) - 1 + 0.1, unique(bin_number) - 1 + 0.9, length.out = nrow(.)))
+}
+
+create_twostep_plot <- function(data, binsToPlot, stats_step1, sizeBin0, alpha) {
+  
+  # assign SNPs to bins
+  m = nrow(data) 
+  nbins = floor(log2(m/sizeBin0 + 1)) 
+  nbins = if (m > sizeBin0 * 2^nbins) {nbins = nbins + 1} 
+  sizeBin = c(sizeBin0 * 2^(0:(nbins-2)), m - sizeBin0 * (2^(nbins-1) - 1) ) 
+  sizeBin = c(sizeBin0 * 2^(0:(nbins-1))) 
+  endpointsBin = cumsum(sizeBin)
+  
+  rk.pv <- c(1:m)
+  grp <- ceiling(log(rk.pv/sizeBin0+1,base=2))
+  
+  rep_helper <- c(table(grp))
+  alphaBin = alpha * 2 ^ -(1:nbins) / sizeBin 
+  alphaBin_dat <- rep(alphaBin, rep_helper)
+  
+  # prep data
+  tmp <- data %>% 
+    dplyr::mutate(step1p = .data[[stats_step1]],
+                  step2p = wtgxep) %>% 
+    dplyr::arrange(step1p) %>% 
+    dplyr::mutate(bin_number = as.numeric(grp), 
+                  step2p_sig = as.numeric(alphaBin_dat), 
+                  log_step2p_sig = -log10(step2p_sig), 
+                  log_step2p = -log10(step2p))
+  
+  significant_hits <- filter(tmp, step2p < step2p_sig)
+  
+  # output list of bins for plotting
+  tmp_plot <- tmp %>% 
+    arrange(CHR, BP) %>% 
+    group_by(bin_number) %>% 
+    group_split()
+  
+  # add mapinfo
+  tmp_plot <- lapply(tmp_plot, create_mapinfo)
+  logp_plot_limit = 12
+  last.sig = alphaBin[binsToPlot]
+
+  color <- rep(c("#377EB8","#4DAF4A"),100)
+  par(mar=c(6, 7, 6, 3))
+  bin_to_plot = tmp_plot[[1]]
+  plot(pull(bin_to_plot, mapinfo), pull(bin_to_plot, log_step2p),
+       col = ifelse(pull(bin_to_plot, SNP) %in% significant_hits[, 'SNP'], '#E41A1C','#377EB8'),
+       pch = ifelse(pull(bin_to_plot, SNP) %in% significant_hits[, 'SNP'], 19, 20),
+       cex = ifelse(pull(bin_to_plot, SNP) %in% significant_hits[, 'SNP'], 0.8, 1),
+       xlab="Bin number (based on Step 1 p-value)",
+       ylab="-log10 GxE p-value)",
+       xlim=c(0, binsToPlot),
+       ylim=c(0, logp_plot_limit),
+       axes=F,
+       cex.main = 1,
+       cex.axis = 1,
+       cex.lab = 1,
+       cex.sub = 0.9)
+  lines(pull(bin_to_plot, mapinfo), pull(bin_to_plot, log_step2p_sig), col = "black", lwd=1)
+  
+  # remaining bins
+  for(i in 2:binsToPlot) {
+    bin_to_plot = tmp_plot[[i]]
+    points(pull(bin_to_plot, mapinfo), pull(bin_to_plot, log_step2p),
+           col = ifelse(pull(bin_to_plot, SNP) %in% significant_hits$SNP, '#E41A1C', color[i]),
+           pch = ifelse(pull(bin_to_plot, SNP) %in% significant_hits$SNP, 19, 20),
+           cex = ifelse(pull(bin_to_plot, SNP) %in% significant_hits$SNP, 0.8, 1),
+           cex.main = 1,
+           cex.axis = 1,
+           cex.lab = 1,
+           cex.sub = 0.9)
+    lines(pull(bin_to_plot, mapinfo), pull(bin_to_plot, log_step2p_sig),
+          col = "black",lwd = 1)
+  }
+  
+  axis(1, at = c(-1.5, seq(0.5, binsToPlot-0.2, 1)), label = c(0, seq(1, binsToPlot, 1)), cex.axis = 1)
+  axis(2, at = c(0:floor(logp_plot_limit)), label = c(0:logp_plot_limit), cex.axis=1)
+  title(main = "Two-step plot", sub = "iBin Size = 5, alpha = 0.05", cex.main = 1.2, cex.sub = 1)
+  
+}
+
+```
+
+<style type="text/css">
+
+table, td, th {
+  border: none;
+  padding-left: 1em;
+  padding-right: 1em;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+/* Whole document: */
+body{
+  font-family: Helvetica;
+  font-size: 11pt;
+}
+/* Headers */
+/* h1,h2,h3,h4,h5,h6{ */
+/*  font-size: 24pt; */
+}
+
+</style>
+
+
+
+
+# Main results
+
+## Description
+
+GWIS results plots. All analyses performed using [LinGxEScanR](https://github.com/USCbiostats/LinGxEScanR). P-values are based on Wald tests. Refer to the github page for more detailed documentation of methods.  
+
+Only SNPs on autosomal chromosomes were analyzed. We assume the underlying genotype for each SNP is biallelic, with possible genotype 0 (two major alleles), 1 (heterozygous), or 2 (two minor alleles). For each SNP, the imputed dosage is assumed to be a value between 0 and 2 representing the expected number of minor alleles. Analyses were filtered based on imputation quality (Rsq > 0.8) and MAF (> 5%).  
+
+## Summary of methods/plots  
+
+Assume the following coding:  
+
+**Y**:  Outcome phenotype (assumed to be continuous)  
+**E**:  Exposure (binary or continuous)    
+**Z**: 	A set of adjustment covariates. Typically includes age, sex, ancestry PCs, etc.  
+**G**:  Measured genotype or imputed genotype dosage at one of M SNPs being scanned for GxE interaction.    
+
+<br>
+
+### Models
+ - **G-only (N restricted to non-missing E)**: $$E(Y) = \alpha + \beta_GG + \boldsymbol{\beta_Z Z}$$   
+ - **GE**: $$E(Y) = \alpha + \beta_GG + \beta_EE+ \boldsymbol{\beta_Z Z}$$   
+ - **G,GxE**: $$E(Y) = \alpha + \beta_GG + \beta_EE + \beta_GxEGxE+ \boldsymbol{\beta_Z Z}$$   
+ - **E-only (N restricted to non-missing E)**: $$E(Y) = \alpha + \beta_EG + \boldsymbol{\beta_Z Z}$$  
+
+### Program output
+ Following fields output to a tab-delimited text file, with one record per analyzed SNP
+
+ - **SNP info**:  SNP, CHR, LOC, REF, ALT
+ - **N** : number of subjects
+ - **bg_g, se_g, wtg_g, dfg_g**: estimate, se, Wald t-test and df for G from G-only model
+ - **bg_ge, seg_ge, wtg_ge, dfg_ge**: estimate, se, Wald t-test and df for G from GE model
+ - **bgxe, segxe, wtgxe, dfgxe**: estimate, se, Wald t-test and df for GxE from GxE model
+ - **wchisqggxe, wdfgxe**: Wald 2-df joint test of G, GxE from the G,GxE model and df (always 2)
+ - **varg, vargxe, covgxe**: variance/covariance for G, GxE from G,GxE model
+ - **flevene**: Levene's F-test for variance het among genotypes based on residuals from E-only model
+ - **fchisqnum, fchisqden, dfnum, dfdenom**: numerator and denominator chisq (and df) for levene's test
+   
+### QQ/Manhattan Plots
+
+- **G**: Main effects GWAS test of $\beta_G$ based on G-only model
+- **G_GE**: Main effects GWAS test of $\beta_G$ based on GE model
+- **GxE**: 1-df GWIS test of $\beta_GxE$ from the G,GxE model
+- **2DF**: Joint test of $\beta_G = \beta_GxE = 0$ from the G,GxE model
+
+### Two-step methods
+
+Two-step methods implement a 'filtering' step (Step 1) prior to GxE testing (Step 2) to decrease multiple testing burden and improve power. We employ a weighted hypothesis testing framework (Ionita-Laza 2007), which partitions SNPs into exponentially larger bins of predetermined sizes (# of SNPs = 5, 10, 20, ...), each with increasingly more stringent GxE significance thresholds. In effect, SNPs with highly significant Step 1 statistics are tested for GxE interactions at more liberal thresholds, while overall alpha is maintained at 0.05 (Zhang et al., 2016).  
+
+Step 1: SNPs ranked according to p-value for test main G effect of $\beta_G$ based on GE model
+Step 2: 1-df Test of GxE based on $\beta_G$, with bin-specific threshold determined by:
+  - Bin 1: (0.05/2)/5
+  - Bin 2: (0.05/4)/10
+  - Bin 3: (0.05/8)/20
+  etc.
+
+<br>
+
+----
+
+<br>
+
+
+
+
+```{r}
+# prepare gxescan output for plotting
+# need to edit file path
+output <- read.table("C:/Users/ak/Desktop/bdchr22gweis.all.out", header = T, stringsAsFactors = F) %>%
+  mutate(wtg_gp = pchisq(wtg_g^2, df = 1, lower.tail = F),
+         wtg_gep = pchisq(wtg_ge^2, df = 1, lower.tail = F),
+         wtgxep = pchisq(wtgxe^2, df = 1, lower.tail = F),
+         wchisqggxep = pchisq(wchisqggxe, df = 2, lower.tail = F),
+         CHR = as.numeric(gsub("chr", "", CHR)), 
+         BP = as.numeric(LOC), 
+         SNP = SNP)
+```
+
+
+# QQ Plots {.tabset}
+
+## G
+```{r, cache = T, fig.dim = c(8, 6)}
+qq(output$wtg_gp, 
+   main = "QQ plot of G p-values, G only", 
+   pch = 18, 
+   col = "blue",
+   cex = 1.5)
+```
+
+## G_GE
+```{r, cache = T, fig.dim = c(8, 6)}
+qq(output$wtg_gep, 
+   main = "QQ plot of G p-values, GE model", 
+   pch = 18, 
+   col = "blue",
+   cex = 1.5)
+```
+
+## GxE
+```{r, cache = T, fig.dim = c(8, 6)}
+qq(output$wtgxep, 
+   main = "QQ plot of GxE p-values", 
+   pch = 18, 
+   col = "blue",
+   cex = 1.5)
+```
+
+## 2DF
+```{r, cache = T, fig.dim = c(8, 6)}
+qq(output$wchisqggxep, 
+   main = "QQ plot of G, GxE joint p-values", 
+   pch = 18, 
+   col = "blue",
+   cex = 1.5)
+```
+
+
+
+
+# Manhattan Plots {.tabset}
+
+## G
+```{r, cache = T, fig.dim = c(8, 6)}
+manhattan(output,
+          p = 'wtg_gp',
+          snp = 'SNP',
+          main = "Manhattan Plot of G p-values, G only",
+          # cex = 0.9, 
+          cex.axis = 1.0,
+          col = c("blue4", "orange3"), 
+          annotatePval = 5e-8)
+```
+
+## G_GE
+```{r, cache = T, fig.dim = c(8, 6)}
+manhattan(output,
+          p = 'wtg_gep',
+          snp = 'SNP',
+          main = "Manhattan Plot of G p-values, GE model",
+          # cex = 0.9, 
+          cex.axis = 1.0,
+          col = c("blue4", "orange3"), 
+          annotatePval = 5e-8)
+```
+
+## GxE
+```{r, cache = T, fig.dim = c(8, 6)}
+
+# qqman seems to crash if you try to annotate SNPs that don't meet significance threshold
+manhattan(output,
+          p = 'wtgxep',
+          # snp = 'SNP',
+          main = "Manhattan Plot of GxE p-values",
+          # cex = 0.9, 
+          cex.axis = 1.0,
+          col = c("blue4", "orange3"))
+```
+
+## 2DF
+```{r, cache = T, fig.dim = c(8, 6)}
+manhattan(output,
+          p = 'wchisqggxep',
+          snp = 'SNP',
+          main = "Manhattan Plot of G, GxE joint p-values",
+          # cex = 0.9, 
+          cex.axis = 1.0,
+          col = c("blue4", "orange3"), 
+          annotatePval = 5e-8)
+```
+
+
+
+# Two-Step Plots
+
+Step 1 statistic: G_GE  
+Step 2 statistic: GxE  
+Plotting 10 out 15 bins 
+
+```{r, cache = F, fig.dim = c(8, 6)}
+create_twostep_plot(output,
+                    binsToPlot = 10,
+                    stats_step1 = 'wtg_gep',
+                    sizeBin0 = 5,
+                    alpha = 0.05)
+```
+
+

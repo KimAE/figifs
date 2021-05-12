@@ -1,0 +1,190 @@
+---
+date: '`r paste("Updated on", Sys.Date())`'
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 2
+    theme: "united"
+params:
+  exposure: "bmi5"
+  hrc_version: "v2.3"
+  covariates: !r c("age_ref_imp", "pc1", "pc2", "pc3", "study_gxe")
+title: "FIGI GWIS Results - `r params$exposure`"
+---
+
+
+```{r setup, include=F}
+knitr::opts_chunk$set(echo = F, message = F, warning = F, error = F)
+
+library(tidyverse)
+library(data.table)
+library(ggplot2)
+library(qqman)
+library(table1)
+library(meta)
+library(rlang)
+library(broom)
+library(effects)
+library(figifs)
+library(DT)
+library(grid)
+library(sjPlot)
+library(stargazer)
+library(nnet)
+library(forcats)
+library(kableExtra)
+library(reticulate)
+library(glue)
+library(flextable)
+library(gtools)
+
+# source of files
+output_dir = paste0("/media/work/gwis/posthoc/", params$exposure, "/")
+```
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px !important;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+table, td, th {
+  border: none;
+  padding-left: 1em;
+  padding-right: 1em;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+/* Whole document: */
+body{
+  font-family: Helvetica;
+  font-size: 14pt;
+}
+/* Headers */
+/* h1,h2,h3,h4,h5,h6{ */
+/*  font-size: 24pt; */
+}
+
+</style>
+
+
+
+# Main results
+
+## Description
+
+GWIS results plots. All analyses performed using [GxEScanR](https://github.com/USCbiostats/GxEScanR). P-values are based on likelihood ratio tests. Refer to the github page for more detailed documentation of methods.  
+
+Only SNPs on autosomal chromosomes were analyzed. We assume the underlying genotype for each SNP is biallelic, with possible genotype 0 (two major alleles), 1 (heterozygous), or 2 (two minor alleles). For each SNP, the imputed dosage is assumed to be a value between 0 and 2 representing the expected number of minor alleles. Analyses were filtered based on imputation quality (Rsq > 0.8) and MAF (> 1%).  
+
+<br>
+
+## Summary of methods/plots  
+
+Assume the following coding:  
+
+**D**:  Disease status (1=case, 0=control)  
+
+**E**:  Exposure (binary/Q4/continuous)  
+
+**C**: 	A set of adjustment covariates. Typically includes age_ref_imp, sex, study_gxe, energytot_imp (when applicable), and the first three principal components  
+
+**G**:  Imputed genotype dosage at one of M SNPs being scanned for GxE interaction.  
+
+<br>
+
+### Exclusion of known GWAS findings
+When applicable, we excluded 200 markers based on Asian-UK GWAS manuscript under preparation. I decided to exclude main findings + LD SNPs calculated on 1000G EUR population rather than position based exclusions because we wanted to avoid missing geniunely novel main effects, although this no longer seems to be a possibility. As a result, in plots excluding GWAS findings some markers markers that coincide with main known regions will still remain. We check that they are indeed in known regions using regional plots.    
+
+### QQ/Manhattan Plots
+
+- **G**: Main effects GWAS in the form (models are adjusted for the exposure variable under investigation) $$Logit(Pr(D=1|G)) = \lambda_0 + \lambda_GG + \boldsymbol{\lambda_CC}$$
+- **GxE**: Standard interaction test 1DF: $$Logit(Pr(D=1|G)) = \beta_0 + \beta_GG + \beta_EE + \beta_{GxE}GxE + \boldsymbol{\beta_CC}$$
+- **2DF**: Joint test of $\beta_G = \beta_GxE = 0$ based on the GxE model
+- **3DF**: Joint test of $\beta_G = \beta_GxE = \delta_G = 0$ based on the GxE model, where the delta term corresponds to associations between G and E in a combined case/control population (see below)
+- **E|G (all)**: E|G association in combined cases/controls $$Logit(Pr(E=1|g)) = \delta_0 + \delta_G$$
+- **E|G (controls)**: E|G association in controls only $$Logit(Pr(G=g|E, D = 0)) = \delta_0 + \delta_1 + \delta_E(g)(E) + \delta_CC \;\;\;\;\;\;  g = 0,1,2$$
+- **E|G (case only)**: E|G association in cases e.g. case-only analysis $$Logit(Pr(G=g|E, D = 1)) = \delta_0 + \delta_1 + \delta_E(g)(E) + \delta_CC \;\;\;\;\;\;  g = 0,1,2$$
+
+<br>
+
+### Two-step methods
+
+Two-step methods implement a 'filtering' step (Step 1) prior to GxE testing (Step 2) to decrease multiple testing burden and improve power. We employ a weighted hypothesis testing framework (Ionita-Laza 2007), which partitions SNPs into exponentially larger bins of predetermined sizes (# of SNPs = 5, 10, 20, ...), each with increasingly more stringent GxE significance thresholds. In effect, SNPs with highly significant Step 1 statistics are tested for GxE interactions at more liberal thresholds, while overall alpha is maintained at 0.05.  
+
+Step 1 ranks are determined from one of the following statistics:  
+
+- G (Kooperberg)  
+- E|G in combined cases/control (Murcray)  
+- EDGE (Gauderman)  
+
+<br>
+
+### Two-step methods using expectation based bins
+
+A limitation of using predetermined bin sizes is that in situations where SNPs are highly correlated (e.g. imputed), haplotypes from the same region will often be assigned to the top bins, effectively 'squandering' power to detect novel associations. In order to address this limitation, we modify the two-step approach in two ways. <br>
+Firstly, we assign SNPs to bins based on Step 1 p-value significance thresholds. Using the same bin sizes as outlined in Ionita-Laza (e.g. 5, 10, 20, etc), we calculate bin specific p-values *in expectation*, assuming a univariate distribution of 1 million tests/p-values. To illustrate -- under the null (e.g. in expectation) and assuming an initial bin size of 5, bin number #1 would have a significance threshold of 5/1,000,000 = 5e-6. Therefore, SNPs with Step 1 p-value < 5e-6 would be partitioned to the first bin. SNPs with p-value between 5e-6 and 1.5e-5 (e.g. 15/1,000,000) would be assigned to bin #2, and so forth. Note that we need not necessarily use Ionita-Laza bin sizes to calculate significance thresholds (currently in discussion).  
+<br>
+Secondly, in Step 2 testing we must now account for multiple testing in each bin to correct for type I error. Bonferroni correction would be overly conservative, so we employ methods to calculate the effective number of tests for multiple testing correction. There are several published methods, and we employ them here as exploratory analyses:  
+
+- Gao, X., Starmer, J., & Martin, E. R. (2008). A multiple testing correction method for genetic association studies using correlated single nucleotide polymorphisms. Genetic Epidemiology, 32(4), 361–369.  
+- Li, J., & Ji, L. (2005). Adjusting multiple testing in multilocus analyses using the eigenvalues of a correlation matrix. Heredity, 95(3), 221–227.  
+- Galwey, N. W. (2009). A new measure of the effective number of tests, a practical tool for comparing families of non-independent significance tests. Genetic Epidemiology, 33(7), 559–568.  
+- Li M.X. et al (2012). Evaluating the effective number of independent tests and significant p-value thresholds in commercial genotyping arrays and public imputation reference datasets. Hum Genet, 131:747-756.  
+
+<br>
+
+
+
+```{r, eval=grepl("height", params$exposure)}
+print("Results exclude Height GIANT Meta-analysis Summary Statistics (Wood et al, 2018). We filtered genome-wide significant findings + LD SNPs at R2 > 0.15")
+```
+
+<!-- ### Functional annotation subset -->
+
+<!-- Approach to begin incorporating functional annotation in GWIS. Using SVM scores generated by Anna (details in methods), we prioritize SNPs that are likely to be functionally relevant. SVM scores were normalized and filtered at $abs(sd) > 3$. Using SNPs with high SVM scores, we generated manhattan and two-step plots.  -->
+
+---
+
+## QQ Plots {.tabset}
+```{r child = 'results_qq.Rmd' }
+```
+
+## Manhattan Plots {.tabset}
+```{r child = 'results_manhattan.Rmd' }
+```
+
+## Two-step Plots {.tabset}
+**Notes**
+- Step 1 D|G uses statistics estimated from the exposure GxE subset population. Models are adjusted by the exposure variable
+<!-- - All plots have a counterpart that excludes the 140 GWAS loci identified in Huygue 2019 (Nat Gen) -->
+```{r child = 'results_two_step.Rmd' }
+```
+
+## Two-step Plots - Gao (c = 99.5%) {.tabset}
+**Notes**
+```{r child = 'results_two_step_eh_gao.Rmd' }
+```
+
+## Two-step Plots - Gao (c = 97.5%) {.tabset}
+**Notes**
+```{r child = 'results_two_step_eh_gao_975.Rmd' }
+```
+
+## Two-step Plots - Li/Ji 2005 {.tabset}
+```{r child = 'results_two_step_eh_liji.Rmd' }
+```
+
+## Two-step Plots - Galwey {.tabset}
+```{r child = 'results_two_step_eh_galwey.Rmd' }
+```
+
+## Two-step Plots - Li 2012 {.tabset}
+```{r child = 'results_two_step_eh_lea.Rmd' }
+```
+
