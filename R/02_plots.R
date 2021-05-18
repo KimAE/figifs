@@ -727,7 +727,7 @@ meff_lea <- function(s) {
 #------------------------------------------------------------------------------#
 #------------------------------------------------------------------------------#
 
-output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000, panel = "kg") {
+output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000, panel = "kg", r2 = 0.5) {
 
   # path for plink files (LD calculation) and writing out bed, ini, pdf, and png files (folder contains all functional annotation stuff)
   # note that the tmp1.ini and tmp2.ini are hardcoded (just find a permanent place for them)
@@ -758,7 +758,7 @@ output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000
   # create bed file for functional annotation plot
   # filter by r2 < 0.5
   bed_out <- read.table(glue("{wdir}/EUR_{snpid_filename}_ld.ld"), header = T) %>%
-    dplyr::filter(R2 >= 0.5) %>%
+    dplyr::filter(R2 >= r2) %>%
     mutate(v1 = paste0('chr', CHR_B),
            v2 = BP_B - 1,
            v3 = BP_B,
@@ -767,7 +767,7 @@ output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000
            v6 = '.',
            v7 = BP_B - 1,
            v8 = BP_B - 1,
-           v9 = ifelse(R2 >= 0.5 & R2 < 0.8, '212,63,58',
+           v9 = ifelse(R2 >= r2 & R2 < 0.8, '212,63,58',
                        ifelse(R2 >= 0.8, '150,50,184', NA))) %>%
     filter(!duplicated(.)) %>%
     dplyr::select(v1,v2,v3,v4,v5,v6,v7,v8,v9)
@@ -787,7 +787,7 @@ output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000
   # create .ini files for pygenometracks
   cat(paste("[snps]",
             glue("file={wdir}/functional_annotation_{snpid_filename}.bed"),
-            "title = r^2 > 0.5",
+            glue("title = r^2 > {r2}"),
             "height = 1",
             "color = bed_rgb",
             "border_color=none",
