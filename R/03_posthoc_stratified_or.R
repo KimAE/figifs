@@ -482,7 +482,8 @@ fit_stratified_or <- function(data_epi, exposure, snp, hrc_version, covariates, 
                              "p1",
                              exposure,
                              "p")
-    saveRDS(final_out, file = paste0(output_dir, "stratified_oddsratio_", snp, "_", exposure, "_dosage.rds"))
+    saveRDS(final_out, file = glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}_dosage.rds"))
+    return(glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}_dosage.rds"))
   } else {
     colnames(est) <- c(paste0(ref_allele, ref_allele),
                        paste0(ref_allele, alt_allele),
