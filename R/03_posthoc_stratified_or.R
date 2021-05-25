@@ -314,7 +314,7 @@ ORtab = function(x,elvl,glvl,res) {
 
 
 # stratified odds ratios - i really only want to do this for binary variables... for continuous i want to use RERI package.. (which i have to do in my own computer)
-fit_stratified_or <- function(data_epi, exposure, snp, hrc_version, covariates, dosage = F, path) {
+fit_stratified_or <- function(data_epi, exposure, snp, hrc_version, covariates, dosage = F, path, flip_allele = F) {
 
   mod = glue_collapse(covariates, sep = "+")
 
@@ -341,7 +341,24 @@ fit_stratified_or <- function(data_epi, exposure, snp, hrc_version, covariates, 
   model_check <- glm(glue("outcome ~ {exposure}*{snpfix} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = data)
 
   # ---- recode SNPs so that lower risk allele is reference (to match RERI output)
-  if (model_check[[1]][snpfix] < 0) {
+  #if (model_check[[1]][snpfix] < 0) {
+  #  # flip dosages
+  #  # data[, snp] <- abs(data[, paste0(snp)] - 2)
+  #  data[, snpfix] <- abs(data[, snpfix] - 2)
+  #  # flip genotype probabilities
+  #  pp <- data[,paste0(snpfix_short, "_p2")]
+  #  data[,paste0(snpfix_short, "_p2")] <- data[, paste0(snpfix_short, "_p0")]
+  #  data[,paste0(snpfix_short, "_p0")] <- pp
+  #  # assign ref/alt allele
+  #  ref_allele <- snp_info[4]
+  #  alt_allele <- snp_info[3]
+  #} else {
+  #  ref_allele <- snp_info[3]
+  #  alt_allele <- snp_info[4]
+  #}
+
+
+  if (flip_allele == T) {
     # flip dosages
     # data[, snp] <- abs(data[, paste0(snp)] - 2)
     data[, snpfix] <- abs(data[, snpfix] - 2)
@@ -356,7 +373,6 @@ fit_stratified_or <- function(data_epi, exposure, snp, hrc_version, covariates, 
     ref_allele <- snp_info[3]
     alt_allele <- snp_info[4]
   }
-
 
   # create data subset
   tmp1 = data[, c('outcome', exposure, covariates)]
