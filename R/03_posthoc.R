@@ -2,6 +2,15 @@
 # functions to perform some posthoc analyses
 #=============================================================================#
 
+#' posthoc_sig_wrapper
+#'
+#' @param filename 
+#' @param output_dir 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 posthoc_sig_wrapper <- function(filename, output_dir) {
   
   # check if data.frame is empty (no rows)
@@ -42,6 +51,18 @@ posthoc_sig_wrapper <- function(filename, output_dir) {
 
 
 # function to get SNP, then merge it with the working dataset
+#' get_dosage
+#'
+#' @param exposure_subset_vcfids 
+#' @param exposure 
+#' @param hrc_version 
+#' @param snp 
+#' @param path 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 get_dosage <- function(exposure_subset_vcfids, exposure, hrc_version, snp, path) {
   
   # data_subset <- data %>% 
@@ -129,6 +150,19 @@ stargazer_helper <- function(..., title, column.labels, coef, notes) {
 
 
 
+#' fit_gxe_covars
+#'
+#' @param data_epi 
+#' @param exposure 
+#' @param snp 
+#' @param covariates_list 
+#' @param method 
+#' @param path 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 fit_gxe_covars <- function(data_epi, 
                            exposure, 
                            snp, 
@@ -423,6 +457,15 @@ fit_gxe_stratified <- function(data_epi,
 
 # you kno what, i'm going to put this at the end of the functional annotation plot scirpt.. 
 # NO ... since you never know if you'll expand upon these annotations.. 
+#' output_chromatin_mark_overlap
+#'
+#' @param snp 
+#' @param path 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 output_chromatin_mark_overlap <- function(snp, path) {
   
   idir <- glue("{path}/functional_plot")
@@ -537,6 +580,18 @@ reri_wrapper <- function(data_epi, exposure, snp, covariates, path){
 
 # snp = chr:bp:ref:alt
 # path = '/media/work/gwis_test/exposure/
+#' create_aaf_study_plot
+#'
+#' @param data 
+#' @param exposure 
+#' @param hrc_version 
+#' @param snp 
+#' @param path 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 create_aaf_study_plot <- function(data, exposure, hrc_version, snp, path) {
 
   # use dosage to calculate AAF

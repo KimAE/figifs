@@ -56,10 +56,6 @@ format_res <- function(res) {
 #' @export
 #'
 #' @examples Model.all.new(figi, "age_ref_imp+sex+study_gxe+pc1+pc2+pc3", "asp_ref")
-
-data <- ds_tmp
-env = exposure
-
 Model.all.new <- function(data, mod, env) {
   
   mModel <- paste0('outcome~', env, '*p1+', env, '*p2+', mod)
@@ -345,6 +341,21 @@ ORtab = function(x, elvl, glvl, res) {
 
 
 
+#' fit_stratified_or
+#'
+#' @param data_epi 
+#' @param exposure 
+#' @param snp 
+#' @param hrc_version 
+#' @param covariates 
+#' @param dosage 
+#' @param path 
+#' @param flip_allele 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 fit_stratified_or <- function(data_epi, exposure, snp, hrc_version, covariates, dosage = F, path, flip_allele = F) {
   
   mod = glue_collapse(covariates, sep = "+")

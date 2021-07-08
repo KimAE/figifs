@@ -727,6 +727,18 @@ meff_lea <- function(s) {
 #------------------------------------------------------------------------------#
 #------------------------------------------------------------------------------#
 
+#' output_functional_plot
+#'
+#' @param snp 
+#' @param ld_window 
+#' @param plot_window 
+#' @param panel 
+#' @param r2 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000, panel = "kg", r2 = 0.5) {
 
   # path for plink files (LD calculation) and writing out bed, ini, pdf, and png files (folder contains all functional annotation stuff)
@@ -835,6 +847,20 @@ output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000
 #------------------------------------------------------------------------------#
 #------------------------------------------------------------------------------#
 
+#' output_locuszoom_plot
+#'
+#' @param snp 
+#' @param exposure 
+#' @param hrc_version 
+#' @param statistic 
+#' @param plot_window 
+#' @param path 
+#' @param panel 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 output_locuszoom_plot <- function(snp, exposure, hrc_version, statistic, plot_window = 500, path, panel = 'kg') {
   
   # path for plink files (LD calculation) and writing out bed, ini, pdf, and png files (folder contains all functional annotation stuff)

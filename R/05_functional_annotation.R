@@ -4,6 +4,18 @@
 
 # run chromatin accesibility marker (scacheri and finucane) perl script
 # for calling these functions, need to supply file name with full path (for convenience)
+#' output_chromatin
+#'
+#' @param exposure 
+#' @param hrc_version 
+#' @param snp 
+#' @param path_in 
+#' @param path_out 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 output_chromatin <- function(exposure, hrc_version, snp, path_in, path_out) {
 
     # i expect SNP in format chr:bp:ref:alt
@@ -29,6 +41,18 @@ output_chromatin <- function(exposure, hrc_version, snp, path_in, path_out) {
 # this function outputs two files
 # 1) another bed file with ref/alt information (used in liftOver later))
 # 2) bed file edited to use in VEP query (tsv)
+#' format_vep
+#'
+#' @param exposure 
+#' @param hrc_version 
+#' @param snp 
+#' @param path_in 
+#' @param path_out 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 format_vep <- function(exposure, hrc_version, snp, path_in, path_out) {
 
     snp_sep <- unlist(strsplit(snp, split = ":")) 
@@ -63,6 +87,17 @@ format_vep <- function(exposure, hrc_version, snp, path_in, path_out) {
 
 
 # eQTL (GTEx v8)
+#' output_eqtl_gtex
+#'
+#' @param exposure 
+#' @param hrc_version 
+#' @param snp 
+#' @param path_out 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 output_eqtl_gtex <- function(exposure, hrc_version, snp,  path_out) {
 
     snp_sep <- unlist(strsplit(snp, split = ":"))

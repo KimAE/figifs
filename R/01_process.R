@@ -2,6 +2,16 @@
 # functions to process GxEScanR output
 #=============================================================================#
 
+#' process_gxe_output
+#'
+#' @param exposure 
+#' @param hrc_version 
+#' @param path 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 process_gxe_output <- function(exposure, hrc_version, path) {
   
   rsq_filter <- readRDS("/scratch2/andreeki/gwis_test/data/rsq_0.8_filter_snplist.rds")

@@ -298,6 +298,24 @@ get_estimates_gxe_by_group <- function(df, outcome, exposure, group, dosage, ...
 
 
 
+#' create_forest_plot
+#'
+#' @param data_epi 
+#' @param exposure 
+#' @param covariates 
+#' @param hrc_version 
+#' @param path 
+#' @param forest_height 
+#' @param forest_width 
+#' @param funnel_height 
+#' @param funnel_width 
+#' @param strata 
+#' @param categorical 
+#'
+#' @return
+#' @export
+#'
+#' @examples
 create_forest_plot <- function(data_epi, exposure, covariates, hrc_version, path, forest_height = 17, forest_width = 8.5, funnel_height = 8, funnel_width = 8.5, strata = 'all', categorical = T) {
   
   # note - data_epi should be the exposure subset you submitted to gxescanR
