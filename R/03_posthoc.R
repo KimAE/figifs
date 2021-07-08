@@ -525,3 +525,61 @@ reri_wrapper <- function(data_epi, exposure, snp, covariates, path){
   
   
 }
+
+
+
+
+#------------------------------------------------------------------------------#
+# create AAF plot by study
+#------------------------------------------------------------------------------#
+
+
+
+# snp = chr:bp:ref:alt
+# path = '/media/work/gwis_test/exposure/
+create_aaf_study_plot <- function(data, exposure, hrc_version, snp, path) {
+
+  # use dosage to calculate AAF
+  snpname_clean <- function(x) {
+    tmp <- gsub("\\:", "\\_", x)
+    # tmp <- gsub("X", "chr", tmp)
+    tmp <- glue("chr{tmp}_dose")
+    return(tmp)
+  }
+
+  snpfix <- snpname_clean(snp)
+  snpfix_short <- paste0("chr", gsub("\\:", "\\_", snp))
+
+  # SNP - need to change the SNP name to match the file (because of binarydosage output)
+  tmp <- unlist(strsplit(snpfix_short, "_"))
+  chr <- tmp[1]
+  bp <- as.numeric(tmp[2])
+  ref <- tmp[3]
+  alt <- tmp[4]
+
+
+
+  tmp <- qread(glue("{path}/output/posthoc/dosage_{chr}_{bp}.qs")) %>%
+    inner_join(data, 'vcfid')
+
+  aaf <- function(x) {
+    sum(x) / nrow(x)
+  }
+
+  out <- tmp %>%
+    group_by(study_gxe) %>%
+    summarise(total = n(),
+              study_aaf = sum(.data[[snpfix]]) / (total*2)) %>%
+    arrange(study_aaf) %>%
+    mutate(study_gxe = fct_reorder(study_gxe, study_aaf))
+
+  ggplot(aes(x = study_gxe, y = study_aaf), data = out) +
+    geom_point() +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 270)) +
+    xlab("Study") +
+    ylab("Alternate Allele Frequency")
+  ggsave(glue("{path}/output/posthoc/aaf_by_studygxe_{exposure}_{hrc_version}_{snpfix}.png"), height = 8, width = 6)
+
+}
+
