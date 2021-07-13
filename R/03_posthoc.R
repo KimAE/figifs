@@ -84,10 +84,11 @@ get_dosage <- function(exposure_subset_vcfids, exposure, hrc_version, snp, path)
   # get dosages
   bdose <- readRDS(paste0("/project/dconti_250/HRC_BDose/FIGI_snpid_fix_chr", chr, ".rds"))
   dosages <- GetSNPValues(bdose, snp, geneProb = T)
-  
+ 
+  # Don't filter by exposure subset vcfids (just get all) 
   dosages_df <- data.frame(dosages) %>% 
-    dplyr::mutate(vcfid = rownames(.)) %>% 
-    dplyr::filter(vcfid %in% exposure_subset_vcfids) 
+    dplyr::mutate(vcfid = rownames(.)) #%>% 
+    #dplyr::filter(vcfid %in% exposure_subset_vcfids) 
     # inner_join(data_subset, 'vcfid')
   
   snpname_clean <- function(x) {
