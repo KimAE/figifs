@@ -920,3 +920,185 @@ fit_stratified_or <- function(data_epi, exposure, snp, hrc_version, covariates, 
 #  
 #}
 
+
+
+
+
+#' fit_stratified_or_q3
+#'
+#' @param data_epi
+#' @param exposure
+#' @param snp
+#' @param hrc_version
+#' @param covariates
+#' @param dosage
+#' @param path
+#' @param flip_allele
+#'
+#' @return
+#' @export
+#'
+#' @examples
+fit_stratified_or_q3 <- function(data_epi, exposure, snp, hrc_version, covariates, dosage = F, path, flip_allele = F) {
+
+  mod = glue_collapse(covariates, sep = "+")
+  wdir = glue("{path}/posthoc")
+
+  # SNP information
+  snp_info <- unlist(strsplit(snp, split = ":"))
+  snpname_clean <- function(x) {
+    tmp <- gsub("\\:", "\\_", x)
+    # tmp <- gsub("X", "chr", tmp)
+    tmp <- glue("chr{tmp}_dose")
+    return(tmp)
+  }
+
+  snpfix <- snpname_clean(snp)
+  snpfix_short <- paste0("chr", gsub("\\:", "\\_", snp))
+
+  # read dosage file
+  data_dose <- qread(glue("{wdir}/dosage_chr{snp_info[1]}_{snp_info[2]}.qs"))
+  data <- inner_join(data_epi, data_dose, 'vcfid')
+
+  if (flip_allele == T) {
+    # flip dosages
+    # data[, snp] <- abs(data[, paste0(snp)] - 2)
+    data[, snpfix] <- abs(data[, snpfix] - 2)
+    # flip genotype probabilities
+    pp <- data[,paste0(snpfix_short, "_p2")]
+    data[,paste0(snpfix_short, "_p2")] <- data[, paste0(snpfix_short, "_p0")]
+    data[,paste0(snpfix_short, "_p0")] <- pp
+    # assign ref/alt allele
+    ref_allele <- snp_info[4]
+    alt_allele <- snp_info[3]
+  } else {
+    ref_allele <- snp_info[3]
+    alt_allele <- snp_info[4]
+  }
+
+  # create data subset
+  tmp1 = data[, c('outcome', exposure, covariates)]
+  tmp2 = data[, grepl(paste(paste0(snpfix_short, c("_dose", "_p0", "_p1", "_p2")), collapse = "|"), names(data))]
+  names(tmp2) <- c("dosage", "p0", "p1", "p2")
+
+  ds_tmp = cbind(tmp1, tmp2) %>%
+    na.omit(.[, c(exposure, 'outcome', covariates, 'p1', 'p2', 'dosage')]) # from data.table. remove rows with NA in these columns)
+
+
+
+  #---- Calculate counts for each cell ----------------
+  n_levels = 3
+  Ncaco = data.frame(snps=snpfix_short,matrix(NA,ncol=6*n_levels))
+  colnames(Ncaco) = c('snps',paste0('Co',1:n_levels),paste0('Ca',1:n_levels),
+                      paste0('Co1',1:n_levels),paste0('Ca1',1:n_levels),
+                      paste0('Co2',1:n_levels),paste0('Ca2',1:n_levels))
+  rownames(Ncaco) = snpfix_short
+
+  Ncaco[snpfix_short,c(paste0('Co',1:n_levels),paste0('Ca',1:n_levels))] = t(table(ds_tmp[,c('outcome',exposure)]))
+  Ncaco[snpfix_short,c(paste0('Co1',1:n_levels),paste0('Ca1',1:n_levels))] = c(t(tapply(ds_tmp$p1, ds_tmp[,c('outcome',exposure)], sum, na.rm=T)))
+  Ncaco[snpfix_short,c(paste0('Co2',1:n_levels),paste0('Ca2',1:n_levels))] = c(t(tapply(ds_tmp$p2, ds_tmp[,c('outcome',exposure)], sum, na.rm=T)))
+
+  #== calculate counts for G=0 and put counts into format ca/co
+  for(i in 1:n_levels){
+    eval(parse(text=paste0('Ncaco$caco0',i,"=paste0(round(Ncaco$Ca",i,'-Ncaco$Ca1',i,'-Ncaco$Ca2',i,
+                           ",1),'/',round(Ncaco$Co",i,'-Ncaco$Co1',i,'-Ncaco$Co2',i,',1))')))
+    eval(parse(text=paste0('Ncaco$caco1',i,'=paste0(round(Ncaco$Ca1',i,",1),'/',round(Ncaco$Co1",i,",1))")))
+    eval(parse(text=paste0('Ncaco$caco2',i,'=paste0(round(Ncaco$Ca2',i,",1),'/',round(Ncaco$Co2",i,",1))")))
+  }
+
+
+
+  #-- Fit unrestricted model --------
+  # ds_tmp[,exposure] = factor(ds_tmp[,exposure])
+  tmp = as.vector(Model.all.new(ds_tmp, mod, exposure))
+
+  res.pool.un = res.pool.g = res.pool.e = NULL
+  res.pool.un = rbind(res.pool.un,data.frame(snpfix_short,exposure,t(tmp$GE)))
+  res.pool.e = rbind(res.pool.e,data.frame(snpfix_short,exposure,t(tmp$E)))
+  res.pool.g = rbind(res.pool.g,data.frame(snpfix_short,exposure,t(tmp$G)))
+
+  ## organize results ######
+  ## need to automate elvl eventually..
+  if(is.factor(ds_tmp[,exposure])) {
+    elvl <- c(0:(nlevels(ds_tmp[, exposure])-1))
+  } else {
+    elvl <- c(0,1)
+  }
+
+  # always set to genotype (have different function for per allelic dosage.. )
+  glvl <- c(0:2)
+
+  ##== GE stratified results ########
+  colnames(res.pool.un) = c('snp','env',paste0('beta',elvl[-1],'p0'),paste0('se',elvl[-1],'p0'),
+                            'beta0p1','beta0p2','se0p1','se0p2',
+                            paste0('beta',elvl[-1],'p1'),paste0('se',elvl[-1],'p1'),
+                            paste0('beta',elvl[-1],'p2'),paste0('se',elvl[-1],'p2'))
+  res.pool.un = format_res(res.pool.un)
+
+  ##== stratified by G results #######
+  colnames(res.pool.g) = c('snp','env',paste0(rep(c('beta0','se0','beta1','se1','beta2','se2'),each=2),
+                                              rep(elvl[-1],6)))
+  res.pool.g = format_res(res.pool.g)
+
+  ##== stratified by E results #######
+  colnames(res.pool.e) = c('snp','env',paste0('beta1',elvl),paste0('se1',elvl),
+                           paste0('beta2',elvl),paste0('se2',elvl))
+  res.pool.e = format_res(res.pool.e)
+
+
+  ##== Put into table
+  OR.tab = ORtab(snpfix_short,
+                 elvl=elvl,
+                 glvl=glvl,
+                 res=res.pool.un)
+  pval.tab = ptab(snpfix_short,elvl=elvl,glvl=glvl,res=res.pool.un)
+
+  ORg.tab = matrix(as.character(unlist(c(as.character(res.pool.g[,paste0('OR0',elvl[-1])]),
+                                         as.character(res.pool.g[,paste0('OR1',elvl[-1])]),
+                                         as.character(res.pool.g[,paste0('OR2',elvl[-1])])))), ncol=3)
+  pg.tab = matrix(as.character(unlist(c(as.character(res.pool.g[,paste0('Ppval0',elvl[-1])]),
+                                        as.character(res.pool.g[,paste0('Ppval1',elvl[-1])]),
+                                        as.character(res.pool.g[,paste0('Ppval2',elvl[-1])])))),ncol=3)
+  colnames(ORg.tab) = colnames(pg.tab) = c(paste0('p',glvl))
+
+  ORe.tab = matrix(as.character(unlist(c(res.pool.e[,paste0('OR1',elvl)],
+                                         res.pool.e[,paste0('OR2',elvl)]))), ncol=2)
+  pe.tab  = matrix(as.character(unlist(c(res.pool.e[,paste0('Ppval1',elvl)],
+                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2,byrow=T)
+
+
+
+
+  est = cbind(rbind(OR.tab[1,],pval.tab[1,],
+                    OR.tab[2,],pval.tab[2,],
+                    OR.tab[3,],pval.tab[3,],
+                    ORg.tab[1,],pg.tab[1,],
+                    ORg.tab[2,],pg.tab[2,]),
+              rbind(ORe.tab[1,],pe.tab[1,],
+                    ORe.tab[2,],pe.tab[2,],
+                    ORe.tab[3,],pe.tab[3,],
+                    matrix(data = NA, nrow = (n_levels-1)*2, ncol = 2)),
+              N0 = c(Ncaco[snpfix_short,'caco01'],NA,Ncaco[snpfix_short,'caco02'],NA,Ncaco[snpfix_short,'caco03'],rep(NA,5)),
+              N1 = c(Ncaco[snpfix_short,'caco11'],NA,Ncaco[snpfix_short,'caco12'],NA,Ncaco[snpfix_short,'caco13'],rep(NA,5)),
+              N2 = c(Ncaco[snpfix_short,'caco21'],NA,Ncaco[snpfix_short,'caco22'],NA,Ncaco[snpfix_short,'caco23'],rep(NA,5)))
+
+  colnames(est) <- c(paste0(ref_allele, ref_allele),
+                     paste0(ref_allele, alt_allele),
+                     paste0(alt_allele, alt_allele),
+                     paste0(ref_allele, alt_allele),
+                     paste0(alt_allele, alt_allele),
+                     "N0", "N1", "N2")
+  exposure_level <- levels(as.factor(ds_tmp[,exposure]))
+  rownames(est) <- c(paste0(exposure,"=",exposure_level[1]),
+                     "p0",
+                     paste0(exposure,"=",exposure_level[2]),
+                     "p1",
+                     paste0(exposure,"=",exposure_level[3]),
+                     "p2",
+                     paste0(exposure,"=",exposure_level[2], "(G)"),
+                     "p1 (G)",
+                     paste0(exposure,"=",exposure_level[3], "(G)"),
+                     "p2 (G)")
+
+}
+
