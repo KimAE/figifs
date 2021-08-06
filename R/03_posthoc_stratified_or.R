@@ -1100,5 +1100,8 @@ fit_stratified_or_q3 <- function(data_epi, exposure, snp, hrc_version, covariate
                      paste0(exposure,"=",exposure_level[3], "(G)"),
                      "p2 (G)")
 
+  saveRDS(est, file = glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
+  return(glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
+
 }
 
