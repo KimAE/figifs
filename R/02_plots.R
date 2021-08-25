@@ -744,9 +744,9 @@ output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000
   # path for plink files (LD calculation) and writing out bed, ini, pdf, and png files (folder contains all functional annotation stuff)
   # note that the tmp1.ini and tmp2.ini are hardcoded (just find a permanent place for them)
   if(panel == "kg") {
-      eur_path = "/scratch/andreeki/locuszoom/data/1000G/genotypes/2014-10-14/EUR"
+      eur_path = "/project/dconti_250/locuszoom/data/1000G/genotypes/2014-10-14/EUR"
   } else if(panel == "hrc") {
-      eur_path = "/scratch/andreeki/locuszoom/data/1000G/genotypes/2014-10-14/ASN"
+      eur_path = "/project/dconti_250/locuszoom/data/1000G/genotypes/2014-10-14/ASN"
   }
 
   wdir = "output/functional_plot"
@@ -779,8 +779,11 @@ output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000
            v6 = '.',
            v7 = BP_B - 1,
            v8 = BP_B - 1,
-           v9 = ifelse(R2 >= r2 & R2 < 0.8, '212,63,58',
-                       ifelse(R2 >= 0.8, '150,50,184', NA))) %>%
+           v9 = case_when(R2 < 0.2             ~ '0,0,128',
+	                  R2 >= 0.2 & R2 < 0.4 ~ '135,206,250',
+			  R2 >= 0.4 & R2 < 0.6 ~ '0,255,0', 
+			  R2 >= 0.6 & R2 < 0.8 ~ '255,165,0', 
+			  R2 >= 0.8            ~ '255,0,0')) %>%
     filter(!duplicated(.)) %>%
     dplyr::select(v1,v2,v3,v4,v5,v6,v7,v8,v9)
 
@@ -825,6 +828,8 @@ output_functional_plot <- function(snp, ld_window = 500000, plot_window = 500000
   # system calls don't seem to work
   # create shell script
   cat(glue("#!/bin/bash",
+	   #"conda init bash", 
+	   #"conda activate pygenometracks", 
            "pyGenomeTracks --tracks {wdir}/functional_annotation_{snpid_filename}.ini --fontSize 8 --dpi 60 --region chr{chr}:{bp-plot_window}-{bp+plot_window} --outFileName {wdir}/functional_annotation_{snpid_filename}.pdf",
            "gs -o {wdir}/functional_annotation_{snpid_filename}.png -sDEVICE=png16m -dTextAlphaBits=4 -r300 -dLastPage=1 {wdir}/functional_annotation_{snpid_filename}.pdf",
            .sep = "\n"), file = glue("{wdir}/functional_annotation_{snpid_filename}.sh"), append = F)
@@ -896,7 +901,7 @@ output_locuszoom_plot <- function(snp, exposure, hrc_version, statistic, plot_wi
       pop = "ASN"
   }
 
-  system(glue("/scratch/andreeki/locuszoom/bin/locuszoom --snpset NULL --metal {pval_file} --pop {pop} --build hg19 --source 1000G_Nov2014 --refsnp {snpid} --flank {plot_window}kb --prefix {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}  --no-date title='{exposure} x {snpid} - {statistic}' signifLine=7.30103 signifLineColor='blue' --denote-markers-file {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.txt"))
+  system(glue("/project/dconti_250/locuszoom/bin/locuszoom --snpset NULL --metal {pval_file} --pop {pop} --build hg19 --source 1000G_Nov2014 --refsnp {snpid} --flank {plot_window}kb --prefix {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}  --no-date title='{exposure} x {snpid} - {statistic}' signifLine=7.30103 signifLineColor='blue' --denote-markers-file {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.txt"))
   
   system(glue("gs -o {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}.png -sDEVICE=png16m -dTextAlphaBits=4 -r300 -dLastPage=1 {wdir}/locuszoom_plot_{exposure}_{hrc_version}_{statistic}_{snpid_filename}/chr{chr}_{bp-(plot_window*1000)}-{bp+(plot_window*1000)}.pdf"))
   

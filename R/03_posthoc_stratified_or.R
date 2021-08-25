@@ -602,323 +602,323 @@ fit_stratified_or <- function(data_epi, exposure, snp, hrc_version, covariates, 
 # ---------------------------------------------------------- #
 
 
-##' Model.all.new.continuous
-##' 
-##' for red/proc meat analysis, Dr. stern wanted stratified odds ratios, and i think it's worth doing it for a unit increase in exposure
-##' for each genotype (informative). I think this is the correct way of fitting the model. 
-##'
-##' @param data 
-##' @param mod 
-##' @param env 
-##'
-##' @return
-##' @export
-##'
-##' @examples
-#Model.all.new.continuous <- function(data,mod,env){
-#  
-#  # error check
-#  if(length(table(data$p1))<=1 | length(table(data$p2))<=1 | 
-#     var(2*data$p2+data$p1,na.rm=T)==0 | 
-#     sum((data$p2+data$p1)>1.1,na.rm=T)>0) {
-#    res = NA
-#  } else {
-#    mModel <- paste0('outcome~',env,'*p1+',env,'*p2+',mod)
-#    tmp <- summary(glm(mModel, family='binomial', data=data))
-#    COV <- tmp$cov.unscaled
-#    env.idx = env
-#    
-#    # stratified by GE  
-#    eg0 <- tmp$coef[env.idx,c(1,2)] # E
-#    beta.eg1 <- tmp$coef[env.idx,1]+tmp$coef['p1',1]+tmp$coef[paste0(env.idx,':p1'),1] # E+p1+E:p1
-#    beta.eg2 <- tmp$coef[env.idx,1]+tmp$coef['p2',1]+tmp$coef[paste0(env.idx,':p2'),1] # E+p2+E:p2
-#    e0g <- tmp$coef[c('p1','p2'),c(1,2)] # p1, p2
-#    I3 =  rep(1,3)
-#    
-#    se.eg1 = se.eg2 = NULL
-#    covs = COV[c(env.idx,'p1',paste0(env.idx,':p1')),c(env.idx,'p1',paste0(env.idx,':p1'))]		
-#    se.eg1 = c(se.eg1,sqrt(t(I3)%*%covs%*%I3)) # calculating SE of the combined E+G+E:G estimate 
-#    covs = COV[c(env.idx,'p2',paste0(env.idx,':p2')),c(env.idx,'p2',paste0(env.idx,':p2'))]		
-#    se.eg2 = c(se.eg2,sqrt(t(I3)%*%covs%*%I3)) # calculating SE of the combined E+G+E:G estimate 
-#    GE<- c(eg0,e0g,beta.eg1,se.eg1,beta.eg2,se.eg2) # E, G, E:p1, se.E:p1, E:p2, se.E:p2
-#    
-#    
-#    
-#    
-#    # stratified by G 
-#    g0 <-tmp$coef[env.idx,1:2]
-#    if(length(env.idx)==1){ # confused about this check.. 
-#      idx.g1 = c(env.idx,paste0(env.idx,':p1'))
-#      idx.g2 = c(env.idx,paste0(env.idx,':p2'))
-#      g1 = sum(tmp$coef[idx.g1,1],na.rm=T)
-#      g2 = sum(tmp$coef[idx.g2,1],na.rm=T)
-#      Is1 =  rep(1,length(idx.g1))
-#      Is2 =  rep(1,length(idx.g2))
-#    }else{
-#      est.g1 <- data.frame(tmp$coef[env.idx,1],tmp$coef[paste0(env.idx,':p1'),1])
-#      est.g2 <- data.frame(tmp$coef[env.idx,1],tmp$coef[paste0(env.idx,':p2'),1])
-#      g1 = rowSums(est.g1,na.rm=T)
-#      g2 = rowSums(est.g2,na.rm=T)
-#      Is1 =  rep(1,ncol(est.g1))
-#      Is2 =  rep(1,ncol(est.g2))
-#    }
-#    
-#
-#    se.g1 = se.g2 = NULL
-#    covs1 = COV[c(env.idx,paste0(env.idx,':p1')),c(env.idx,paste0(env.idx,':p1'))]  
-#    covs2 = COV[c(env.idx,paste0(env.idx,':p2')),c(env.idx,paste0(env.idx,':p2'))]  
-#    se.g1 <- c(se.g1,sqrt(t(Is1)%*%covs1%*%Is1))
-#    se.g2 <- c(se.g2,sqrt(t(Is2)%*%covs2%*%Is2))
-#    G<- c(g0,g1,se.g1,g2,se.g2) # E, E+E:p1, se.E+E:p1, E+E:p2, se.E+E:p2
-#    
-#    
-#    # stratified by E
-#    
-#    e0 <-tmp$coef[c('p1','p2'),1:2]
-#    if(length(env.idx)==1){
-#      idx.e11 = c('p1',paste0(env.idx,':p1'))
-#      idx.e12 = c('p2',paste0(env.idx,':p2'))
-#      e11 = sum(tmp$coef[idx.e11,1],na.rm=T) # p1 + E:p1
-#      e12 = sum(tmp$coef[idx.e12,1],na.rm=T)
-#      Is1 =  rep(1,length(idx.e11))
-#      Is2 =  rep(1,length(idx.e12))
-#    }else{
-#      est.e11 <- data.frame(tmp$coef['p1',1],tmp$coef[paste0(env.idx,':p1'),1])
-#      est.e12 <- data.frame(tmp$coef['p2',1],tmp$coef[paste0(env.idx,':p2'),1])
-#      e11 = rowSums(est.e11,na.rm=T)
-#      e12 = rowSums(est.e12,na.rm=T)
-#      Is1 =  rep(1,ncol(est.e11))
-#      Is2 =  rep(1,ncol(est.e12))
-#    }
-#    
-#    
-#    se.e11 = se.e12 = NULL
-#      covs1 = COV[c('p1',paste0(env.idx,':p1')),c('p1',paste0(env.idx,':p1'))]  
-#      covs2 = COV[c('p2',paste0(env.idx,':p2')),c('p2',paste0(env.idx,':p2'))]  
-#      se.e11 <- c(se.e11,sqrt(t(Is1)%*%covs1%*%Is1))
-#      se.e12 <- c(se.e12,sqrt(t(Is2)%*%covs2%*%Is2))
-#    E <- c(e0[1,1],e11,e0[1,2],se.e11,e0[2,1],e12,e0[2,2],se.e12) # p1, p1+E:p1, se.p1, se.p1+E:p1, p2, p2+E:p2, se.p2, se.p2+E:p2
-#    
-#    
-#  }
-#  res<-list(GE=GE,G=G,E=E)
-#}
-#
-#
-#
-##' fit_stratified_or_continuous
-##'
-##' @param data_epi
-##' @param exposure
-##' @param snp
-##' @param hrc_version
-##' @param covariates
-##' @param dosage
-##' @param path
-##' @param flip_allele
-##'
-##' @return
-##' @export
-##'
-##' @examples
-#fit_stratified_or_continuous <- function(data_epi, exposure, snp, hrc_version, covariates, dosage = F, path, flip_allele = F) {
-#  
-#  mod = glue_collapse(covariates, sep = "+")
-#  
-#  # wdir = glue("{path}/output/posthoc")
-#  wdir = glue("{path}/posthoc")
-#  
-#  
-#  # SNP information
-#  snp_info <- unlist(strsplit(snp, split = ":"))
-#  
-#  snpname_clean <- function(x) {
-#    tmp <- gsub("\\:", "\\_", x)
-#    # tmp <- gsub("X", "chr", tmp)
-#    tmp <- glue("chr{tmp}_dose")
-#    return(tmp)
-#  }
-#  
-#  snpfix <- snpname_clean(snp)
-#  snpfix_short <- paste0("chr", gsub("\\:", "\\_", snp))
-#  
-#  #data_dose <- qread(glue("{wdir}/dosage_chr{chr}_{bp}.qs"))
-#  data_dose <- qread(glue("{wdir}/dosage_chr{snp_info[1]}_{snp_info[2]}.qs"))
-#  
-#  data <- inner_join(data_epi, data_dose, 'vcfid')
-#
-#  
-#  if (flip_allele == T) {
-#    snp_old <- snpfix_short
-#    snp_tmp <- unlist(strsplit(snp, split = ":"))
-#    chr <- snp_tmp[1]; bp <- snp_tmp[2]; a1 <- snp_tmp[3]; a2 <- snp_tmp[4]
-#    snp_new <- glue("chr{snp_info[1]}_{snp_info[2]}_{snp_info[4]}_{snp_info[3]}")
-#    
-#    data[, paste0(snp_new, "_dose")] <- abs(data[, paste0(snp_old, "_dose")] - 2)
-#    data[, paste0(snp_new, "_p2")] <- data[, paste0(snp_old, "_p0")]
-#    data[, paste0(snp_new, "_p1")] <- data[, paste0(snp_old, "_p1")]
-#    data[, paste0(snp_new, "_p0")] <- data[, paste0(snp_old, "_p2")]
-#
-#    ref_allele <- snp_info[4]
-#    alt_allele <- snp_info[3]
-#    
-#  } else {
-#    snp_old <- snpfix_short
-#    snp_tmp <- unlist(strsplit(snp, split = ":"))
-#    chr <- snp_tmp[1]; bp <- snp_tmp[2]; a1 <- snp_tmp[3]; a2 <- snp_tmp[4]
-#    snp_new <- glue("chr{snp_info[1]}_{snp_info[2]}_{snp_info[3]}_{snp_info[4]}")
-#    
-#    ref_allele <- snp_info[3]
-#    alt_allele <- snp_info[4]
-#    
-#  }
-#  
-#  
-#  
-#  
-#  # create data subset
-#  tmp1 = data[, c('outcome', exposure, covariates)]
-#  # tmp2 = data[, grepl(paste(paste0(snp_new, c("_dose", "_p0", "_p1", "_p2")), collapse = "|"), names(data))]
-#  tmp2 = data[, paste(paste0(snp_new, c("_dose", "_p0", "_p1", "_p2")))]
-#  names(tmp2) <- c("dosage", "p0", "p1", "p2")
-#  
-#  ds_tmp = cbind(tmp1, tmp2) %>%
-#    na.omit(.[, c(exposure,'outcome', covariates, 'p1','p2','dosage')])
-#  
-#  
-#  # ---------------------------------- #
-#
-#  res.pool.un = res.pool.g = res.pool.e = NULL
-#  
-#  #-- Fit unrestricted model --------
-#  tmp = as.vector(Model.all.new.continuous(ds_tmp,mod,exposure))
-#  res.pool.un = rbind(res.pool.un,data.frame(snpfix_short,exposure,t(tmp$GE)))
-#  res.pool.e = rbind(res.pool.e,data.frame(snpfix_short,exposure,t(tmp$E)))
-#  res.pool.g = rbind(res.pool.g,data.frame(snpfix_short,exposure,t(tmp$G)))
-#  
-#  ## organize results ######
-#  elvl=c(0:1) ; glvl = c(0,1,2)
-#  
-#  colnames(res.pool.un) = c('snp','env',paste0('beta',elvl[-1],'p0'),paste0('se',elvl[-1],'p0'),
-#                            'beta0p1','beta0p2','se0p1','se0p2',
-#                            paste0('beta',elvl[-1],'p1'),paste0('se',elvl[-1],'p1'),
-#                            paste0('beta',elvl[-1],'p2'),paste0('se',elvl[-1],'p2'))
-#  res.pool.un = format_res(res.pool.un)
-#  
-#  
-#  ##== stratified by G results #######
-#  colnames(res.pool.g) = c('snp','env',paste0(rep(c('beta0','se0','beta1','se1','beta2','se2'),each=1),
-#                                              rep(elvl[-1],6)))
-#  res.pool.g = format_res(res.pool.g)
-#  
-#  
-#  
-#  ##== stratified by E results #######
-#  colnames(res.pool.e) = c('snp','env',paste0('beta1',elvl),paste0('se1',elvl),
-#                           paste0('beta2',elvl),paste0('se2',elvl))
-#  res.pool.e = format_res(res.pool.e)
-#  
-#  
-#  ##== Put into table
-#  OR.tab = ORtab(snpfix_short,elvl=elvl,glvl=glvl,res=res.pool.un)
-#  pval.tab = ptab(snpfix_short,elvl=elvl,glvl=glvl,res=res.pool.un)
-#  
-#  ORg.tab = matrix(as.character(unlist(c(as.character(res.pool.g[,paste0('OR0',elvl[-1])]),
-#                                         as.character(res.pool.g[,paste0('OR1',elvl[-1])]),
-#                                         as.character(res.pool.g[,paste0('OR2',elvl[-1])])))), ncol=3)
-#  pg.tab = matrix(as.character(unlist(c(as.character(res.pool.g[,paste0('Ppval0',elvl[-1])]),
-#                                        as.character(res.pool.g[,paste0('Ppval1',elvl[-1])]),
-#                                        as.character(res.pool.g[,paste0('Ppval2',elvl[-1])])))),ncol=3)
-#  
-#  colnames(ORg.tab) = colnames(pg.tab) = c(paste0('p',glvl))
-#  ORe.tab = matrix(as.character(unlist(c(res.pool.e[,paste0('OR1',elvl)],
-#                                         res.pool.e[,paste0('OR2',elvl)]))),ncol=2)
-#  pe.tab  = matrix(as.character(unlist(c(res.pool.e[,paste0('Ppval1',elvl)],
-#                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2,byrow=T)
-#  
-#  
-#  #=== write into table
-#  # est = cbind(rbind(OR.tab[1,],pval.tab[1,],OR.tab[2,],pval.tab[2,],
-#  #                   ORg.tab[1,],pg.tab[1,]),
-#  #             rbind(ORe.tab[1,],pe.tab[1,],ORe.tab[2,],pe.tab[2,],rep(NA,2),rep(NA,2)),
-#  #             N0 = c(Ncaco[snpfix_short,'caco01'],NA,Ncaco[snpfix_short,'caco02'],rep(NA,3)),
-#  #             N1 = c(Ncaco[snpfix_short,'caco11'],NA,Ncaco[snpfix_short,'caco12'],rep(NA,3)),
-#  #             N2 = c(Ncaco[snpfix_short,'caco21'],NA,Ncaco[snpfix_short,'caco22'],rep(NA,3)))
-#  
-#  est = cbind(rbind(OR.tab[1,],pval.tab[1,],OR.tab[2,],pval.tab[2,],
-#                    ORg.tab[1,],pg.tab[1,]),
-#              rbind(ORe.tab[1,],pe.tab[1,],ORe.tab[2,],pe.tab[2,],rep(NA,2),rep(NA,2)))
-#  
-#  
-#  
-#  
-#  # slightly modify output in case anyone wants per allele effects rather than p1/p2
-#  if(dosage == T) {
-#    
-#    tmp = as.vector(Model.all.new.dosage(ds_tmp,mod,exposure))
-#    res.pool.un = res.pool.g = res.pool.e = NULL
-#    res.pool.un = rbind(res.pool.un,data.frame(snpfix_short,exposure,t(tmp$GE)))
-#    
-#    elvl=c(0:1) ; glvl = c(0,1)
-#    tmp2 = NULL
-#    tmp2 = rbind(tmp2,data.frame(snpfix_short,exposure,t(tmp$GE)))
-#    
-#    colnames(tmp2) = c('snp','env',paste0('beta',elvl[-1],'p0'),paste0('se',elvl[-1],'p0'),
-#                       'beta0p1','beta0p2','se0p1','se0p2')
-#    tmp2 = format_res(tmp2)
-#    
-#    res.pool.e = rbind(res.pool.e,data.frame(snpfix_short,exposure,t(tmp$E)))
-#    colnames(res.pool.e) = c('snp',
-#                             'env',
-#                             paste0('beta1',elvl),paste0('se1',elvl))
-#    tmp2 <- format_res(res.pool.e)
-#    
-#    
-#    ORe.tab = matrix(as.character(unlist(c(tmp2[,paste0('OR1',elvl)]))),ncol=2)
-#    pe.tab  = matrix(as.character(unlist(c(tmp2[,paste0('Ppval1',elvl)]))),ncol=2,byrow=T)
-#    est2 <- rbind(ORe.tab[1,1],pe.tab[1,1],ORe.tab[1,2],pe.tab[1,2], NA, NA)
-#    
-#    final_out <- est %>%
-#      dplyr::select(-c(4,5)) %>%
-#      add_column(est2, .after = 3)
-#    
-#    colnames(final_out) <- c(paste0(ref_allele, ref_allele),
-#                             paste0(ref_allele, alt_allele),
-#                             paste0(alt_allele, alt_allele),
-#                             paste0(alt_allele, " Allelic Dosage"))
-#    # this is only for FACTOR variables (might have to modify when you run Q4 variables)
-#    # exposure_level <- levels(data[,exposure])
-#    exposure_level <- c(0,1)
-#    rownames(final_out) <- c(paste0(exposure,"=",exposure_level[1]),
-#                             "p0",
-#                             paste0(exposure,"=",exposure_level[2]),
-#                             "p1",
-#                             exposure,
-#                             "p")
-#    saveRDS(final_out, file = glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}_dosage.rds"))
-#    return(glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}_dosage.rds"))
-#  } else {
-#    colnames(est) <- c(paste0(ref_allele, ref_allele),
-#                       paste0(ref_allele, alt_allele),
-#                       paste0(alt_allele, alt_allele),
-#                       paste0(ref_allele, alt_allele),
-#                       paste0(alt_allele, alt_allele))
-#    # exposure_level <- levels(data[,exposure])
-#    exposure_level <- c(0,1)
-#    rownames(est) <- c(paste0(exposure,"=",exposure_level[1]),
-#                       "p0",
-#                       paste0(exposure,"=",exposure_level[2]),
-#                       "p1",
-#                       exposure,
-#                       "p")
-#    
-#    #return(est)
-#    saveRDS(est, file = glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
-#    return(glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
-#    # saveRDS(est, file = glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}.rds"))
-#  }
-#  
-#}
+#' Model.all.new.continuous
+#' 
+#' for red/proc meat analysis, Dr. stern wanted stratified odds ratios, and i think it's worth doing it for a unit increase in exposure
+#' for each genotype (informative). I think this is the correct way of fitting the model. 
+#'
+#' @param data 
+#' @param mod 
+#' @param env 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+Model.all.new.continuous <- function(data,mod,env){
+  
+  # error check
+  if(length(table(data$p1))<=1 | length(table(data$p2))<=1 | 
+     var(2*data$p2+data$p1,na.rm=T)==0 | 
+     sum((data$p2+data$p1)>1.1,na.rm=T)>0) {
+    res = NA
+  } else {
+    mModel <- paste0('outcome~',env,'*p1+',env,'*p2+',mod)
+    tmp <- summary(glm(mModel, family='binomial', data=data))
+    COV <- tmp$cov.unscaled
+    env.idx = env
+    
+    # stratified by GE  
+    eg0 <- tmp$coef[env.idx,c(1,2)] # E
+    beta.eg1 <- tmp$coef[env.idx,1]+tmp$coef['p1',1]+tmp$coef[paste0(env.idx,':p1'),1] # E+p1+E:p1
+    beta.eg2 <- tmp$coef[env.idx,1]+tmp$coef['p2',1]+tmp$coef[paste0(env.idx,':p2'),1] # E+p2+E:p2
+    e0g <- tmp$coef[c('p1','p2'),c(1,2)] # p1, p2
+    I3 =  rep(1,3)
+    
+    se.eg1 = se.eg2 = NULL
+    covs = COV[c(env.idx,'p1',paste0(env.idx,':p1')),c(env.idx,'p1',paste0(env.idx,':p1'))]		
+    se.eg1 = c(se.eg1,sqrt(t(I3)%*%covs%*%I3)) # calculating SE of the combined E+G+E:G estimate 
+    covs = COV[c(env.idx,'p2',paste0(env.idx,':p2')),c(env.idx,'p2',paste0(env.idx,':p2'))]		
+    se.eg2 = c(se.eg2,sqrt(t(I3)%*%covs%*%I3)) # calculating SE of the combined E+G+E:G estimate 
+    GE<- c(eg0,e0g,beta.eg1,se.eg1,beta.eg2,se.eg2) # E, G, E:p1, se.E:p1, E:p2, se.E:p2
+    
+    
+    
+    
+    # stratified by G 
+    g0 <-tmp$coef[env.idx,1:2]
+    if(length(env.idx)==1){ # confused about this check.. 
+      idx.g1 = c(env.idx,paste0(env.idx,':p1'))
+      idx.g2 = c(env.idx,paste0(env.idx,':p2'))
+      g1 = sum(tmp$coef[idx.g1,1],na.rm=T)
+      g2 = sum(tmp$coef[idx.g2,1],na.rm=T)
+      Is1 =  rep(1,length(idx.g1))
+      Is2 =  rep(1,length(idx.g2))
+    }else{
+      est.g1 <- data.frame(tmp$coef[env.idx,1],tmp$coef[paste0(env.idx,':p1'),1])
+      est.g2 <- data.frame(tmp$coef[env.idx,1],tmp$coef[paste0(env.idx,':p2'),1])
+      g1 = rowSums(est.g1,na.rm=T)
+      g2 = rowSums(est.g2,na.rm=T)
+      Is1 =  rep(1,ncol(est.g1))
+      Is2 =  rep(1,ncol(est.g2))
+    }
+    
+
+    se.g1 = se.g2 = NULL
+    covs1 = COV[c(env.idx,paste0(env.idx,':p1')),c(env.idx,paste0(env.idx,':p1'))]  
+    covs2 = COV[c(env.idx,paste0(env.idx,':p2')),c(env.idx,paste0(env.idx,':p2'))]  
+    se.g1 <- c(se.g1,sqrt(t(Is1)%*%covs1%*%Is1))
+    se.g2 <- c(se.g2,sqrt(t(Is2)%*%covs2%*%Is2))
+    G<- c(g0,g1,se.g1,g2,se.g2) # E, E+E:p1, se.E+E:p1, E+E:p2, se.E+E:p2
+    
+    
+    # stratified by E
+    
+    e0 <-tmp$coef[c('p1','p2'),1:2]
+    if(length(env.idx)==1){
+      idx.e11 = c('p1',paste0(env.idx,':p1'))
+      idx.e12 = c('p2',paste0(env.idx,':p2'))
+      e11 = sum(tmp$coef[idx.e11,1],na.rm=T) # p1 + E:p1
+      e12 = sum(tmp$coef[idx.e12,1],na.rm=T)
+      Is1 =  rep(1,length(idx.e11))
+      Is2 =  rep(1,length(idx.e12))
+    }else{
+      est.e11 <- data.frame(tmp$coef['p1',1],tmp$coef[paste0(env.idx,':p1'),1])
+      est.e12 <- data.frame(tmp$coef['p2',1],tmp$coef[paste0(env.idx,':p2'),1])
+      e11 = rowSums(est.e11,na.rm=T)
+      e12 = rowSums(est.e12,na.rm=T)
+      Is1 =  rep(1,ncol(est.e11))
+      Is2 =  rep(1,ncol(est.e12))
+    }
+    
+    
+    se.e11 = se.e12 = NULL
+      covs1 = COV[c('p1',paste0(env.idx,':p1')),c('p1',paste0(env.idx,':p1'))]  
+      covs2 = COV[c('p2',paste0(env.idx,':p2')),c('p2',paste0(env.idx,':p2'))]  
+      se.e11 <- c(se.e11,sqrt(t(Is1)%*%covs1%*%Is1))
+      se.e12 <- c(se.e12,sqrt(t(Is2)%*%covs2%*%Is2))
+    E <- c(e0[1,1],e11,e0[1,2],se.e11,e0[2,1],e12,e0[2,2],se.e12) # p1, p1+E:p1, se.p1, se.p1+E:p1, p2, p2+E:p2, se.p2, se.p2+E:p2
+    
+    
+  }
+  res<-list(GE=GE,G=G,E=E)
+}
+
+
+
+#' fit_stratified_or_continuous
+#'
+#' @param data_epi
+#' @param exposure
+#' @param snp
+#' @param hrc_version
+#' @param covariates
+#' @param dosage
+#' @param path
+#' @param flip_allele
+#'
+#' @return
+#' @export
+#'
+#' @examples
+fit_stratified_or_continuous <- function(data_epi, exposure, snp, hrc_version, covariates, dosage = F, path, flip_allele = F) {
+  
+  mod = glue_collapse(covariates, sep = "+")
+  
+  # wdir = glue("{path}/output/posthoc")
+  wdir = glue("{path}/posthoc")
+  
+  
+  # SNP information
+  snp_info <- unlist(strsplit(snp, split = ":"))
+  
+  snpname_clean <- function(x) {
+    tmp <- gsub("\\:", "\\_", x)
+    # tmp <- gsub("X", "chr", tmp)
+    tmp <- glue("chr{tmp}_dose")
+    return(tmp)
+  }
+  
+  snpfix <- snpname_clean(snp)
+  snpfix_short <- paste0("chr", gsub("\\:", "\\_", snp))
+  
+  #data_dose <- qread(glue("{wdir}/dosage_chr{chr}_{bp}.qs"))
+  data_dose <- qread(glue("{wdir}/dosage_chr{snp_info[1]}_{snp_info[2]}.qs"))
+  
+  data <- inner_join(data_epi, data_dose, 'vcfid')
+
+  
+  if (flip_allele == T) {
+    snp_old <- snpfix_short
+    snp_tmp <- unlist(strsplit(snp, split = ":"))
+    chr <- snp_tmp[1]; bp <- snp_tmp[2]; a1 <- snp_tmp[3]; a2 <- snp_tmp[4]
+    snp_new <- glue("chr{snp_info[1]}_{snp_info[2]}_{snp_info[4]}_{snp_info[3]}")
+    
+    data[, paste0(snp_new, "_dose")] <- abs(data[, paste0(snp_old, "_dose")] - 2)
+    data[, paste0(snp_new, "_p2")] <- data[, paste0(snp_old, "_p0")]
+    data[, paste0(snp_new, "_p1")] <- data[, paste0(snp_old, "_p1")]
+    data[, paste0(snp_new, "_p0")] <- data[, paste0(snp_old, "_p2")]
+
+    ref_allele <- snp_info[4]
+    alt_allele <- snp_info[3]
+    
+  } else {
+    snp_old <- snpfix_short
+    snp_tmp <- unlist(strsplit(snp, split = ":"))
+    chr <- snp_tmp[1]; bp <- snp_tmp[2]; a1 <- snp_tmp[3]; a2 <- snp_tmp[4]
+    snp_new <- glue("chr{snp_info[1]}_{snp_info[2]}_{snp_info[3]}_{snp_info[4]}")
+    
+    ref_allele <- snp_info[3]
+    alt_allele <- snp_info[4]
+    
+  }
+  
+  
+  
+  
+  # create data subset
+  tmp1 = data[, c('outcome', exposure, covariates)]
+  # tmp2 = data[, grepl(paste(paste0(snp_new, c("_dose", "_p0", "_p1", "_p2")), collapse = "|"), names(data))]
+  tmp2 = data[, paste(paste0(snp_new, c("_dose", "_p0", "_p1", "_p2")))]
+  names(tmp2) <- c("dosage", "p0", "p1", "p2")
+  
+  ds_tmp = cbind(tmp1, tmp2) %>%
+    na.omit(.[, c(exposure,'outcome', covariates, 'p1','p2','dosage')])
+  
+  
+  # ---------------------------------- #
+
+  res.pool.un = res.pool.g = res.pool.e = NULL
+  
+  #-- Fit unrestricted model --------
+  tmp = as.vector(Model.all.new.continuous(ds_tmp,mod,exposure))
+  res.pool.un = rbind(res.pool.un,data.frame(snpfix_short,exposure,t(tmp$GE)))
+  res.pool.e = rbind(res.pool.e,data.frame(snpfix_short,exposure,t(tmp$E)))
+  res.pool.g = rbind(res.pool.g,data.frame(snpfix_short,exposure,t(tmp$G)))
+  
+  ## organize results ######
+  elvl=c(0:1) ; glvl = c(0,1,2)
+  
+  colnames(res.pool.un) = c('snp','env',paste0('beta',elvl[-1],'p0'),paste0('se',elvl[-1],'p0'),
+                            'beta0p1','beta0p2','se0p1','se0p2',
+                            paste0('beta',elvl[-1],'p1'),paste0('se',elvl[-1],'p1'),
+                            paste0('beta',elvl[-1],'p2'),paste0('se',elvl[-1],'p2'))
+  res.pool.un = format_res(res.pool.un)
+  
+  
+  ##== stratified by G results #######
+  colnames(res.pool.g) = c('snp','env',paste0(rep(c('beta0','se0','beta1','se1','beta2','se2'),each=1),
+                                              rep(elvl[-1],6)))
+  res.pool.g = format_res(res.pool.g)
+  
+  
+  
+  ##== stratified by E results #######
+  colnames(res.pool.e) = c('snp','env',paste0('beta1',elvl),paste0('se1',elvl),
+                           paste0('beta2',elvl),paste0('se2',elvl))
+  res.pool.e = format_res(res.pool.e)
+  
+  
+  ##== Put into table
+  OR.tab = ORtab(snpfix_short,elvl=elvl,glvl=glvl,res=res.pool.un)
+  pval.tab = ptab(snpfix_short,elvl=elvl,glvl=glvl,res=res.pool.un)
+  
+  ORg.tab = matrix(as.character(unlist(c(as.character(res.pool.g[,paste0('OR0',elvl[-1])]),
+                                         as.character(res.pool.g[,paste0('OR1',elvl[-1])]),
+                                         as.character(res.pool.g[,paste0('OR2',elvl[-1])])))), ncol=3)
+  pg.tab = matrix(as.character(unlist(c(as.character(res.pool.g[,paste0('Ppval0',elvl[-1])]),
+                                        as.character(res.pool.g[,paste0('Ppval1',elvl[-1])]),
+                                        as.character(res.pool.g[,paste0('Ppval2',elvl[-1])])))),ncol=3)
+  
+  colnames(ORg.tab) = colnames(pg.tab) = c(paste0('p',glvl))
+  ORe.tab = matrix(as.character(unlist(c(res.pool.e[,paste0('OR1',elvl)],
+                                         res.pool.e[,paste0('OR2',elvl)]))),ncol=2)
+  pe.tab  = matrix(as.character(unlist(c(res.pool.e[,paste0('Ppval1',elvl)],
+                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2,byrow=T)
+  
+  
+  #=== write into table
+  # est = cbind(rbind(OR.tab[1,],pval.tab[1,],OR.tab[2,],pval.tab[2,],
+  #                   ORg.tab[1,],pg.tab[1,]),
+  #             rbind(ORe.tab[1,],pe.tab[1,],ORe.tab[2,],pe.tab[2,],rep(NA,2),rep(NA,2)),
+  #             N0 = c(Ncaco[snpfix_short,'caco01'],NA,Ncaco[snpfix_short,'caco02'],rep(NA,3)),
+  #             N1 = c(Ncaco[snpfix_short,'caco11'],NA,Ncaco[snpfix_short,'caco12'],rep(NA,3)),
+  #             N2 = c(Ncaco[snpfix_short,'caco21'],NA,Ncaco[snpfix_short,'caco22'],rep(NA,3)))
+  
+  est = cbind(rbind(OR.tab[1,],pval.tab[1,],OR.tab[2,],pval.tab[2,],
+                    ORg.tab[1,],pg.tab[1,]),
+              rbind(ORe.tab[1,],pe.tab[1,],ORe.tab[2,],pe.tab[2,],rep(NA,2),rep(NA,2)))
+  
+  
+  
+  
+  # slightly modify output in case anyone wants per allele effects rather than p1/p2
+  if(dosage == T) {
+    
+    tmp = as.vector(Model.all.new.dosage(ds_tmp,mod,exposure))
+    res.pool.un = res.pool.g = res.pool.e = NULL
+    res.pool.un = rbind(res.pool.un,data.frame(snpfix_short,exposure,t(tmp$GE)))
+    
+    elvl=c(0:1) ; glvl = c(0,1)
+    tmp2 = NULL
+    tmp2 = rbind(tmp2,data.frame(snpfix_short,exposure,t(tmp$GE)))
+    
+    colnames(tmp2) = c('snp','env',paste0('beta',elvl[-1],'p0'),paste0('se',elvl[-1],'p0'),
+                       'beta0p1','beta0p2','se0p1','se0p2')
+    tmp2 = format_res(tmp2)
+    
+    res.pool.e = rbind(res.pool.e,data.frame(snpfix_short,exposure,t(tmp$E)))
+    colnames(res.pool.e) = c('snp',
+                             'env',
+                             paste0('beta1',elvl),paste0('se1',elvl))
+    tmp2 <- format_res(res.pool.e)
+    
+    
+    ORe.tab = matrix(as.character(unlist(c(tmp2[,paste0('OR1',elvl)]))),ncol=2)
+    pe.tab  = matrix(as.character(unlist(c(tmp2[,paste0('Ppval1',elvl)]))),ncol=2,byrow=T)
+    est2 <- rbind(ORe.tab[1,1],pe.tab[1,1],ORe.tab[1,2],pe.tab[1,2], NA, NA)
+    
+    final_out <- est %>%
+      dplyr::select(-c(4,5)) %>%
+      add_column(est2, .after = 3)
+    
+    colnames(final_out) <- c(paste0(ref_allele, ref_allele),
+                             paste0(ref_allele, alt_allele),
+                             paste0(alt_allele, alt_allele),
+                             paste0(alt_allele, " Allelic Dosage"))
+    # this is only for FACTOR variables (might have to modify when you run Q4 variables)
+    # exposure_level <- levels(data[,exposure])
+    exposure_level <- c(0,1)
+    rownames(final_out) <- c(paste0(exposure,"=",exposure_level[1]),
+                             "p0",
+                             paste0(exposure,"=",exposure_level[2]),
+                             "p1",
+                             exposure,
+                             "p")
+    saveRDS(final_out, file = glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}_dosage.rds"))
+    return(glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}_dosage.rds"))
+  } else {
+    colnames(est) <- c(paste0(ref_allele, ref_allele),
+                       paste0(ref_allele, alt_allele),
+                       paste0(alt_allele, alt_allele),
+                       paste0(ref_allele, alt_allele),
+                       paste0(alt_allele, alt_allele))
+    # exposure_level <- levels(data[,exposure])
+    exposure_level <- c(0,1)
+    rownames(est) <- c(paste0(exposure,"=",exposure_level[1]),
+                       "p0",
+                       paste0(exposure,"=",exposure_level[2]),
+                       "p1",
+                       exposure,
+                       "p")
+    
+    #return(est)
+    saveRDS(est, file = glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
+    return(glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
+    # saveRDS(est, file = glue("{wdir}/stratified_oddsratio_{exposure}_{hrc_version}_{snpfix_short}.rds"))
+  }
+  
+}
 
 
 

@@ -14,7 +14,7 @@
 #' @examples
 process_gxe_output <- function(exposure, hrc_version, path) {
   
-  rsq_filter <- readRDS("/scratch2/andreeki/gwis_test/data/rsq_0.8_filter_snplist.rds")
+  rsq_filter <- readRDS("/project/dconti_250/gwis_test/data/rsq_0.8_filter_snplist.rds")
   
   out <- do.call(rbind, lapply(list.files(path = path, full.names = T, pattern = glue("FIGI_{hrc_version}_gxeset_{exposure}_basic_covars_gxescan_chr")), fread, stringsAsFactors = F, data.table = F)) %>%
     dplyr::filter(SNP %in% rsq_filter) %>%
@@ -41,7 +41,7 @@ process_gxe_output <- function(exposure, hrc_version, path) {
 # some older results have chr:bp as SNP id.. need to change that
 process_gxe_output <- function(exposure, hrc_version, path) {
   
-  rsq_filter <- readRDS("/scratch2/andreeki/gwis_test/data/rsq_0.8_filter_snplist.rds")
+  rsq_filter <- readRDS("/project/dconti_250/gwis_test/data/rsq_0.8_filter_snplist.rds")
   
   out <- do.call(rbind, lapply(list.files(path = path, full.names = T, pattern = glue("FIGI_{hrc_version}_gxeset_{exposure}_basic_covars_gxescan_chr")), fread, stringsAsFactors = F, data.table = F)) %>%
     dplyr::filter(SNP %in% rsq_filter) %>%
@@ -153,7 +153,7 @@ output_locuszoom_pvals <- function(data, exposure, statistic, hrc_version, path)
 #'
 #' @examples
 clump_plink <- function(file, clump_p1 = 5e-8) {
-    system(glue("plink --bfile /scratch/andreeki/clump/figi_controls_1000 --memory 8000 --clump {file} --clump-p1 {clump_p1} --clump-r2 0.15 --clump-p2 1 --out {gsub('.txt', '', {file})}"), ignore.stdout = T, ignore.stderr = T)
+    system(glue("plink --bfile /project/dconti_250/gwis_test/data/figi_controls_1000 --memory 8000 --clump {file} --clump-p1 {clump_p1} --clump-r2 0.15 --clump-p2 1 --out {gsub('.txt', '', {file})}"), ignore.stdout = T, ignore.stderr = T)
     # uses the figi_controls_1000 file (random sample of FIGI controls) for LD estimation
 
     output_file <- glue("{gsub('.txt', '.clumped', {file})}")
@@ -166,5 +166,50 @@ clump_plink <- function(file, clump_p1 = 5e-8) {
 
 
 
+#' remove_dg_snps
+#'
+#' remove any snps and LD snps if they have dg association greater than gwas. requires the regionbased filtering file (use 1000kb list). Also needs clumped dg output from previous steps, if targets fails this is maybe why
+#'
+#' @param data string
+#' @param exposure string
+#' @param hrc_version string
+#' @param n_flank numeric
+#'
+#' @return
+#' @export
+#'
+#' @examples
+remove_dg_snps <- function(data, exposure, hrc_version, n_flank = 1000000) {
 
+    gwas <- readRDS("/project/dconti_250/gwis_test/data/conditioning_snps_v20200930_filter_GWAS_SNPS_1000k.rds")
+
+    clumped <- fread(glue("data/FIGI_{hrc_version}_gxeset_{exposure}_chiSqG_ldclump.clumped")) %>%
+       dplyr::mutate(SNP2 = paste0(CHR, ":", BP)) %>%
+       dplyr::filter(!SNP2 %in% gwas) %>%
+       dplyr::pull(SNP2) %>%
+       unique(.)
+
+   test <- function(data2, snp, n_flank = n_flank) {
+       snp_sep = unlist(strsplit(snp, split = ":"))
+       chr = as.numeric(snp_sep[1])
+       bp = as.numeric(snp_sep[2])
+
+       out <- data2 %>%
+           dplyr::filter(Chromosome == chr & between(Location, bp-n_flank, bp+n_flank)) %>%
+           dplyr::pull(SNP2)
+
+       return(out)
+    }
+
+    # apply to SNPs
+    tmp <- unlist(map(clumped, ~ test(data, .x, n_flank = n_flank)))
+    out <- unique(tmp)
+
+    out2 <- unique(c(out, gwas))
+
+    saveRDS(out2, file = glue("data/FIGI_{hrc_version}_{exposure}_remove_dg_snps.rds"))
+
+    return(glue("data/FIGI_{hrc_version}_{exposure}_remove_dg_snps.rds"))
+
+}
 
