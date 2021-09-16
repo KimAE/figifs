@@ -307,7 +307,7 @@ output_expectation_bin_snps <- function(data, exposure, hrc_version, stats_step1
 #' @export
 #'
 #' @examples
-create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1, sizeBin0, alpha, path, exclude_gwas = F, filename_suffix = "") {
+create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1, sizeBin0, alpha, path, gwas_snps = NULL, filename_suffix = "") {
 
     # ------- Functions ------- #
     # plot title and file name
@@ -328,20 +328,15 @@ create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1,
 
     # ------- create working dataset ------- #
 
-    if(exclude_gwas == T) {
-        gwas_snps <- readRDS("../data/conditioning_snps_v20200930_filter_GWAS_SNPS_1000k.rds")
-        # remove from data
-        data2 <- data %>%
-            dplyr::filter(!SNP2 %in% gwas_snps)
-    } else {
-       data2 <- data
-    }
+    data2 <- data %>%
+	{if (!is.null(gwas_snps)) dplyr::filter(., !SNP2 %in% gwas_snps) else . }
+
 
     # assign SNPs to bins
     m = nrow(data2) 
     nbins = floor(log2(m/sizeBin0 + 1)) 
     nbins = if (m > sizeBin0 * 2^nbins) {nbins = nbins + 1} 
-    sizeBin = c(sizeBin0 * 2^(0:(nbins-2)), m - sizeBin0 * (2^(nbins-1) - 1) ) 
+    sizeBin = c(sizeBin0 * 2^(0:(nbins-2)), m - sizeBin0 * (2^(nbins-1) - 1) )
     endpointsBin = cumsum(sizeBin)
 
     rk.pv <- c(1:m)
@@ -379,7 +374,7 @@ create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1,
     last.sig = alphaBin[binsToPlot]
 
     # plots
-    if(exclude_gwas == T) {
+    if (!is.null(gwas_snps)) {
         png_filename_prefix = glue("{path}/twostep_{exposure}_{hrc_version}_{stats_step1}_nogwas")
     } else {
         png_filename_prefix = glue("{path}/twostep_{exposure}_{hrc_version}_{stats_step1}")
@@ -436,7 +431,6 @@ create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1,
 
 
 
-
 #' create_twostep_plot_eh
 #' 
 #' modified twostep plots with expectation based bins + step 2 GxE test adjustment for effective number of tests in each bin
@@ -449,15 +443,6 @@ create_twostep_plot <- function(data, exposure, covars, binsToPlot, stats_step1,
 #' @param stats_step1 string
 #' @param sizeBin0 numeric
 #' @param alpha numeric
-#' @param path string
-#' @param meff_method string - gao or liji
-#' @param number_of_snps vector - number of snps for each bin
-#' @param number_of_tests vector - effective number of tests for each bin
-#'
-#' @return
-#' @export
-#'
-#' @examples
 create_twostep_plot_eh <- function(data, exposure, covars, binsToPlot, stats_step1, sizeBin0, alpha, path, m = 1000000, meff_method = "", number_of_snps, number_of_tests) { 
 
     # ------- Some Functions ------- #
@@ -626,7 +611,7 @@ create_twostep_plot_eh <- function(data, exposure, covars, binsToPlot, stats_ste
 #' @export
 #'
 #' @examples
-simplem_wrap <- function(data, exposure, hrc_version, covariates, simplem_step1_statistic, path, meff_method, exclude_gwas = F, gao_pca_cutoff = 0.995) {
+simplem_wrap <- function(data, exposure, hrc_version, covariates, simplem_step1_statistic, path, meff_method, gwas_snps = NULL, gao_pca_cutoff = 0.995) {
 
     # create list of bin SNP dosage data.frames
     # FYI - 'glue' doesn't seem regex friendly
@@ -644,9 +629,9 @@ simplem_wrap <- function(data, exposure, hrc_version, covariates, simplem_step1_
 
     # filter out GWAS SNPs if provided
     # be careful - make sure gwas_snps is provided as chr:bp - so i can change it to Xchr.bp
-    if(exclude_gwas == T) {
+    if (!is.null(gwas_snps)) {
 	# GWAS SNPs to remove (vector of chr:bp)
-	gwas_snps <- readRDS("../data/conditioning_snps_v20200930_filter_GWAS_SNPS_1000k.rds")
+	#gwas_snps <- readRDS("../data/conditioning_snps_v20200930_filter_GWAS_SNPS_1000k.rds")
 	gwas_snps_v2 <- paste0("X", gsub(":", ".", gwas_snps))
 
 	# remove from bins
@@ -683,7 +668,7 @@ simplem_wrap <- function(data, exposure, hrc_version, covariates, simplem_step1_
     }
 
     # helper for writing 'gwas' if you filtered gwas 
-    if(exclude_gwas) {
+    if(!is.null(gwas_snps)) {
 	meff_method_out = glue(meff_method_out, "_excludeGWAS")
     }
 
