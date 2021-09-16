@@ -1314,7 +1314,21 @@ fit_stratified_or_old <- function(data_epi, exposure, snp, hrc_version, covariat
 
 
 
-
+#' fit_stratified_or_q4
+#'
+#' @param data_epi
+#' @param exposure
+#' @param snp
+#' @param hrc_version
+#' @param covariates
+#' @param dosage
+#' @param path
+#' @param flip_allele
+#'
+#' @return
+#' @export
+#'
+#' @examples
 fit_stratified_or_q4 <- function(data_epi, exposure, snp, hrc_version, covariates, dosage = F, path, flip_allele = F) {
 
     mod = glue_collapse(covariates, sep = "+")
