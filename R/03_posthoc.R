@@ -321,6 +321,7 @@ fit_gxe_stratified <- function(data_epi,
                                covariates, 
                                strata = c('sex', 'study_design', 'cancer_site_sum2'), 
                                method = c('chiSqGxE', 'two-step', 'chiSqCase', 'chiSq2df', 'chiSq3df'), 
+			       flip_allele = F,
                                path) {
   
   
@@ -343,10 +344,24 @@ fit_gxe_stratified <- function(data_epi,
   data <- inner_join(data_epi, data_dose, 'vcfid')
   
   
-  # check if SNP has to be recoded (for consistency with RERI model)
-  model_check <- glm(glue("outcome ~ {exposure}*{snpfix} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = data)
+  ## check if SNP has to be recoded (for consistency with RERI model)
+  #model_check <- glm(glue("outcome ~ {exposure}*{snpfix} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = data)
 
-  if (model_check[[1]][snpfix] < 0) {
+  #if (model_check[[1]][snpfix] < 0) {
+  #  snp_old <- snpfix
+  #  snp_tmp <- unlist(strsplit(snpfix, split = "_"))
+  #  chr <- snp_tmp[1]
+  #  bp <- snp_tmp[2]
+  #  a1 <- snp_tmp[3]
+  #  a2 <- snp_tmp[4]
+  #  snp_new <- glue("{chr}_{bp}_{a2}_{a1}_dose_flipped")
+  #  data[[snp_new]] <- abs(2-data[, snp_old])
+  #} else {
+  #  snp_new <- snpfix
+  #}
+  
+  
+  if (flip_allele == T) {
     snp_old <- snpfix
     snp_tmp <- unlist(strsplit(snpfix, split = "_"))
     chr <- snp_tmp[1]
@@ -358,7 +373,7 @@ fit_gxe_stratified <- function(data_epi,
   } else {
     snp_new <- snpfix
   }
-  
+
   # limit possible argument choices
   strata <- match.arg(strata)
   method <- match.arg(method)

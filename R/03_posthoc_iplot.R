@@ -18,7 +18,7 @@
 #' @export
 #'
 #' @examples
-iplot_wrapper <- function(data_epi, exposure, hrc_version, snp, covariates, path) {
+iplot_wrapper <- function(data_epi, exposure, hrc_version, snp, covariates, path, flip_allele = F) {
   
   wdir = glue("{path}/posthoc")
   
@@ -43,11 +43,24 @@ iplot_wrapper <- function(data_epi, exposure, hrc_version, snp, covariates, path
   data_dose <- qread(glue("{wdir}/dosage_chr{chr}_{bp}.qs"))
   data <- inner_join(data_epi, data_dose, 'vcfid')
   
-  # check if SNP has to be recoded (for consistency with RERI model)
-  model_check <- glm(glue("outcome ~ {exposure}*{snpfix} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = data)
+  ## check if SNP has to be recoded (for consistency with RERI model)
+  #model_check <- glm(glue("outcome ~ {exposure}*{snpfix} + {glue_collapse(covariates, sep = '+')}"), family = 'binomial', data = data)
+  #
+  #
+  #if (model_check[[1]][snpfix] < 0) {
+  #  snp_old <- snpfix
+  #  snp_tmp <- unlist(strsplit(snpfix, split = "_"))
+  #  chr <- snp_tmp[1]
+  #  bp <- snp_tmp[2]
+  #  a1 <- snp_tmp[3]
+  #  a2 <- snp_tmp[4]
+  #  snp_new <- glue("{chr}_{bp}_{a2}_{a1}_dose_flipped")
+  #  data[[snp_new]] <- abs(2-data[, snp_old])
+  #} else {
+  #  snp_new <- snpfix
+  #}
   
-  
-  if (model_check[[1]][snpfix] < 0) {
+  if (flip_allele == T) {
     snp_old <- snpfix
     snp_tmp <- unlist(strsplit(snpfix, split = "_"))
     chr <- snp_tmp[1]
@@ -59,8 +72,7 @@ iplot_wrapper <- function(data_epi, exposure, hrc_version, snp, covariates, path
   } else {
     snp_new <- snpfix
   }
-  
-  
+
   model <- glm(glue("outcome ~ {exposure}*{snp_new} + {glue_collapse(covariates, sep = '+')}"), family = binomial(link = "logit"), data = data)
   # summary(model)
   

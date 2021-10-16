@@ -59,19 +59,36 @@ format_vep <- function(exposure, hrc_version, snp, path_in, path_out) {
     chr <- snp_sep[1]
     bp <- snp_sep[2]
 
+
     # hrc ref/alt information
-    hrc <- readRDS(glue("../functional_annotation/hrc/HRC.r1-1.GRCh37.wgs.mac5.sites.tab.chr{chr}.rds"))
+    # Changed it to read kgp
+    hrc <- readRDS(glue("../functional_annotation/kgp/1000GP_Phase3_combined.legend_chr{chr}.rds"))
 
     # create another bedfile
     # r2 > 0.2 (from plink call)
     tmp1 <- fread(glue("{path_in}/EUR_chr{chr}_{bp}_ld.ld"))
     tmp2 <- hrc %>%
-	filter(POS %in% tmp1$BP_B) %>%
-	mutate(V1 = paste0("chr", `#CHROM`),
-	    V2 = POS - 1,
-	    V3 = POS,
-	    V4 = paste(`#CHROM`, POS, REF, ALT, sep = "-")) %>%
+        filter(position %in% tmp1$BP_B) %>%
+        mutate(V1 = paste0("chr", chr),
+            V2 = position - 1,
+            V3 = position,
+            V4 = paste(chr, position, a0, a1, sep = "-")) %>%
     dplyr::select(V1, V2, V3, V4)
+
+
+    ## hrc ref/alt information
+    #hrc <- readRDS(glue("../functional_annotation/hrc/HRC.r1-1.GRCh37.wgs.mac5.sites.tab.chr{chr}.rds"))
+
+    ## create another bedfile
+    ## r2 > 0.2 (from plink call)
+    #tmp1 <- fread(glue("{path_in}/EUR_chr{chr}_{bp}_ld.ld"))
+    #tmp2 <- hrc %>%
+    #    filter(POS %in% tmp1$BP_B) %>%
+    #    mutate(V1 = paste0("chr", `#CHROM`),
+    #        V2 = POS - 1,
+    #        V3 = POS,
+    #        V4 = paste(`#CHROM`, POS, REF, ALT, sep = "-")) %>%
+    #dplyr::select(V1, V2, V3, V4)
 
     bed_new <- glue("{path_out}/figi_{exposure}_{hrc_version}_chr{chr}_{bp}.bed")
     write.table(tmp2, file = bed_new, quote = F, row.names = F, col.names = F, sep = '\t')
