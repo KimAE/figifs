@@ -480,7 +480,7 @@ fit_stratified_or <- function(data_epi, exposure, snp, hrc_version, covariates, 
   ORe.tab = matrix(as.character(unlist(c(res.pool.e[,paste0('OR1',elvl)],
                                          res.pool.e[,paste0('OR2',elvl)]))), ncol=2)
   pe.tab  = matrix(as.character(unlist(c(res.pool.e[,paste0('Ppval1',elvl)],
-                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2,byrow=T)
+                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2)
   
 
 
@@ -834,7 +834,7 @@ fit_stratified_or_continuous <- function(data_epi, exposure, snp, hrc_version, c
   ORe.tab = matrix(as.character(unlist(c(res.pool.e[,paste0('OR1',elvl)],
                                          res.pool.e[,paste0('OR2',elvl)]))),ncol=2)
   pe.tab  = matrix(as.character(unlist(c(res.pool.e[,paste0('Ppval1',elvl)],
-                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2,byrow=T)
+                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2)
   
   
   #=== write into table
@@ -875,7 +875,7 @@ fit_stratified_or_continuous <- function(data_epi, exposure, snp, hrc_version, c
     
     
     ORe.tab = matrix(as.character(unlist(c(tmp2[,paste0('OR1',elvl)]))),ncol=2)
-    pe.tab  = matrix(as.character(unlist(c(tmp2[,paste0('Ppval1',elvl)]))),ncol=2,byrow=T)
+    pe.tab  = matrix(as.character(unlist(c(tmp2[,paste0('Ppval1',elvl)]))),ncol=2)
     est2 <- rbind(ORe.tab[1,1],pe.tab[1,1],ORe.tab[1,2],pe.tab[1,2], NA, NA)
     
     final_out <- est %>%
@@ -1064,7 +1064,7 @@ fit_stratified_or_q3 <- function(data_epi, exposure, snp, hrc_version, covariate
   ORe.tab = matrix(as.character(unlist(c(res.pool.e[,paste0('OR1',elvl)],
                                          res.pool.e[,paste0('OR2',elvl)]))), ncol=2)
   pe.tab  = matrix(as.character(unlist(c(res.pool.e[,paste0('Ppval1',elvl)],
-                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2,byrow=T)
+                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2)
 
 
 
@@ -1221,7 +1221,7 @@ fit_stratified_or_old <- function(data_epi, exposure, snp, hrc_version, covariat
   ORe.tab = matrix(as.character(unlist(c(res.pool.e[,paste0('OR1',elvl)],
                                          res.pool.e[,paste0('OR2',elvl)]))),ncol=2)
   pe.tab  = matrix(as.character(unlist(c(res.pool.e[,paste0('Ppval1',elvl)],
-                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2,byrow=T)
+                                         res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2)
 
   #== calculate counts for G=0 and put counts into format ca/co
   for(i in 1:2){
@@ -1262,7 +1262,7 @@ fit_stratified_or_old <- function(data_epi, exposure, snp, hrc_version, covariat
 
 
     ORe.tab = matrix(as.character(unlist(c(tmp2[,paste0('OR1',elvl)]))),ncol=2)
-    pe.tab  = matrix(as.character(unlist(c(tmp2[,paste0('Ppval1',elvl)]))),ncol=2,byrow=T)
+    pe.tab  = matrix(as.character(unlist(c(tmp2[,paste0('Ppval1',elvl)]))),ncol=2)
     est2 <- rbind(ORe.tab[1,1],pe.tab[1,1],ORe.tab[1,2],pe.tab[1,2], NA, NA)
 
     final_out <- est %>%
@@ -1457,7 +1457,7 @@ fit_stratified_or_q4 <- function(data_epi, exposure, snp, hrc_version, covariate
     ORe.tab = matrix(as.character(unlist(c(res.pool.e[,paste0('OR1',elvl)],
 		    res.pool.e[,paste0('OR2',elvl)]))), ncol=2)
     pe.tab  = matrix(as.character(unlist(c(res.pool.e[,paste0('Ppval1',elvl)],
-		    res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2,byrow=T)
+		    res.pool.e[,paste0('Ppval2',elvl)]))),ncol=2)
 
 
 
