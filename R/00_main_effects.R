@@ -347,7 +347,7 @@ create_forest_plot <- function(data_epi, exposure, covariates, hrc_version, path
       dplyr::filter(!study_gxe %in% drops)
   } else if(categorical == F) {
     drops <- data.frame(table(data_epi$study_gxe, data_epi$outcome)) %>% 
-      dplyr::filter(Freq == 0) %>% 
+      dplyr::filter(Freq <= 5) %>% 
       dplyr::pull(Var1) %>% 
       unique(.)
     
@@ -359,8 +359,10 @@ create_forest_plot <- function(data_epi, exposure, covariates, hrc_version, path
   
   # create model term
   # model_formula <- Reduce(paste, deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome')))
-  model_formula <- deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome'))
-  
+  # model_formula <- deparse(reformulate(c(exposure, sort(covariates)), response = 'outcome'))
+    model_formula <- glue("outcome ~ {exposure} + {glue_collapse(sort(covariates), sep = '+')}")
+
+
   # create study_design data.frame
   study_design <- data_epi %>%
     dplyr::select(study_gxe, study_design) %>%
@@ -376,8 +378,8 @@ create_forest_plot <- function(data_epi, exposure, covariates, hrc_version, path
     ) %>% 
     dplyr::select(-data, -fit) %>% 
     tidyr::unnest(tidied) %>% tidyr::unnest(quality) %>% 
-    dplyr::filter(grepl(exposure, term),
-                  null.deviance > quantile(null.deviance, 0.01)) %>% 
+    dplyr::filter(grepl(exposure, term)) %>%
+                  #null.deviance > quantile(null.deviance, 0.01)) %>% 
     dplyr::arrange(study_gxe)
   
   # include study sample sizes and study design information
@@ -390,13 +392,13 @@ create_forest_plot <- function(data_epi, exposure, covariates, hrc_version, path
                                 std.error,
                                 data=meta_input,
                                 studlab=paste(study_gxe),
-                                comb.fixed = FALSE,
-                                comb.random = TRUE,
+                                fixed = TRUE,
+                                random = TRUE,
                                 method.tau = "SJ",
                                 hakn = TRUE,
                                 prediction=TRUE,
                                 sm="OR",
-                                byvar = study_design)
+                                subgroup = study_design)
   
   # plot_title = glue(strata, "\n{model_formula}", .na = "All")
   plot_title = glue(strata, " (N=", sum(glm_out$nobs), ")", "\n{model_formula}")
@@ -491,7 +493,8 @@ create_glm_stratified_plot <- function(model, G, E, gxe) {
 #' @export
 #'
 #' @examples pooled_analysis_glm(figi, 'asp_ref', c('age_ref_imp', 'sex', 'pc1', 'pc2', 'pc3', 'study_gxe'), strata = 'sex', 'testing')
-pooled_analysis_glm <- function(ds, exposure, hrc_version, covariates, strata = c('sex', 'study_design'), filename_suffix, output_dir) {
+pooled_analysis_glm <- function(ds, exposure, hrc_version, covariates, strata = c('sex', 'study_design', 'bmic3'), filename_suffix, output_dir) {
+
   # output_dir <- paste0("/media/work/gwis/posthoc/", exposure, "/")
   strata <- match.arg(strata)
   number_of_levels <- nlevels(factor(ds[, strata]))
@@ -531,6 +534,8 @@ pooled_analysis_glm <- function(ds, exposure, hrc_version, covariates, strata = 
     col_label = paste0(c("All", "Female", "Male", "Interaction"), " (", list_of_samplesizes, ")")
   } else if(strata == 'study_design') {
     col_label = paste0(c("All", "Cohort", "Case-Control", "Interaction"), " (", list_of_samplesizes, ")")
+  } else if(strata == 'bmic3') {
+    col_label = paste0(c("All", "Normal", "Overweight", "Obese"), " (", list_of_samplesizes, ")")
   } else {
     col_label = c("All", seq(0, number_of_levels - 1))
   }

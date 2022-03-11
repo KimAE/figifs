@@ -13,12 +13,13 @@
 #' @param snp 
 #' @param covariates 
 #' @param path 
+#' @param modx.values
 #'
 #' @return
 #' @export
 #'
 #' @examples
-iplot_wrapper <- function(data_epi, exposure, hrc_version, snp, covariates, path, flip_allele = F) {
+iplot_wrapper <- function(data_epi, exposure, hrc_version, snp, covariates, path, flip_allele = F, modx.values = c(0,1)) {
   
   wdir = glue("{path}/posthoc")
   
@@ -81,10 +82,13 @@ iplot_wrapper <- function(data_epi, exposure, hrc_version, snp, covariates, path
     print(interact_plot(model, modx = !! exposure , pred = !! snp_new, plot.points = F, interval = T, outcome.scale = 'link', y.label = 'predicted log odds') + theme(text = element_text(size = 26)))
     # johnson_neyman(model, pred = folate_totqc2, modx = chr2_55255870_C_T, alpha = 0.05)
   } else {
-    print(interact_plot(model, modx = !! exposure , pred = !! snp_new, plot.points = F, interval = T, modx.values = c(0,1,2,3), outcome.scale = 'link', y.label = 'predicted log odds') + theme(text = element_text(size = 26)))
+    print(interact_plot(model, modx = !! exposure , pred = !! snp_new, plot.points = F, interval = T, modx.values = modx.values, outcome.scale = 'link', y.label = 'predicted log odds') + theme(text = element_text(size = 26)))
   }
   dev.off()
   
   return(glue("{wdir}/interaction_plot_{exposure}_{hrc_version}_{snpfix}_{glue_collapse(sort(covariates), sep = '_')}.png"))
   # saveRDS(out, file = glue("{output_dir}reri_{exposure}_{snp}_{glue_collapse(sort(covariates), sep = '_')}.rds"))
 }
+
+
+
