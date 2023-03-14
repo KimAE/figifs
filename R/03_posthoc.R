@@ -361,7 +361,7 @@ fit_gxe_stratified <- function(data_epi,
                                covariates,
                                strata = c('sex', 'study_design', 'cancer_site_sum2', 'bmic3'),
                                method = c('chiSqGxE', 'chiSqCase', 'chiSq2df', 'chiSq3df', 'chiSqGE'),
-                               flip_allele = F,
+                               flip_allele = F, filename_suffix = "",
                                path) {
   
   # make path the exposure directory e.g. /media/work/gwis_test/exposure
@@ -528,7 +528,7 @@ fit_gxe_stratified <- function(data_epi,
   
   # output to file
 
-  filename = glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snpfix}_{glue_collapse(sort(covariates), sep = '_')}_{deparse(substitute(data_epi))}_stratified_by_{strata}.html")
+  filename = glue("{wdir}/gxe_models_{exposure}_{hrc_version}_{snpfix}_{glue_collapse(sort(covariates), sep = '_')}_{deparse(substitute(data_epi))}_stratified_by_{strata}{filename_suffix}.html")
 
   cat(
     paste(out_html, collapse = "\n"),

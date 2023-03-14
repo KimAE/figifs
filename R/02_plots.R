@@ -180,20 +180,20 @@ create_manhattanplot_ramwas <- function(data, exposure, statistic, hrc_version, 
 
     # output data.frame of significant results
   
-    if(statistic == 'chiSqGxE') {
-      sig_line = 5e-8
-    }  else {
-      sig_line = sig_line
-    }
+    # if(statistic == 'chiSqGxE') {
+    #   sig_line = 5e-8
+    # }  else {
+    #   sig_line = sig_line
+    # }
   
     data_df <- data %>%
 	{if (!is.null(gwas_snps)) dplyr::filter(., !SNP2 %in% gwas_snps) else . } %>%
 	dplyr::filter(.data[[glue(statistic, "_p")]] <= sig_line)
 
     if (!is.null(gwas_snps)) {
-	saveRDS(data_df , file = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}_no_gwas_df.rds"))
+	saveRDS(data_df , file = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}_no_gwas{filename_suffix}_df.rds"))
     } else {
-	saveRDS(data_df , file = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}_df.rds"))
+	saveRDS(data_df , file = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}{filename_suffix}_df.rds"))
     }
 
     # remove missing stats (causes problems otherwise)
@@ -211,10 +211,10 @@ create_manhattanplot_ramwas <- function(data, exposure, statistic, hrc_version, 
 	pos = pos)
 
     if (!is.null(gwas_snps)) {
-	filename = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}_no_gwas.png")
+	filename = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}_no_gwas{filename_suffix}.png")
 	png(filename, height = 720, width = 1280)
     } else {
-	filename = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}.png")
+	filename = glue("{path}/manhattan_{exposure}_{hrc_version}_{statistic}{filename_suffix}.png")
 	png(filename, height = 720, width = 1280)
     }
     manPlotFast(man_prep)
@@ -697,6 +697,124 @@ meff_lea <- function(s) {
     y <- eigen(s)
     out <- floor(ncol(s) - sum((y$values > 1) * (y$values - 1)))
     return(out)
+}
+
+
+
+# update 3/17/2022
+# create alternate version of simplem_wrap because reviewers are complaining about about the multiple method/testing issue
+# this is nearly identical to simplem_wrap, but it's neater to create a separate function because of the targets workflow thing
+# ONLY difference is adjusting the step2 thresholds by the overall alpha (e.g. if there are two methods, then we're considering 0.05 / 2 as overall alpha)
+
+
+
+#' simplem_wrap_alt
+#'
+#' wrapper to create twostep plots with expectation based binning + adjustment of step2 tests by bin specific effective number of tests
+#' the name might be confusing since simplem is the gao method but don't change it at this point.
+#'
+#' I modified the code to rely on the poolr package. I think for Gao method, it uses default window size (which is ok)
+#' Also, instead of calculating r^2 per chromosome, now perform combined for all SNPs.
+#'
+#' Also modified code to accommodate different assumed M for expectation based hybrid plots
+#'
+#' @param data Processed GxEScanR output
+#' @param exposure string
+#' @param covariates vector
+#' @param simplem_step1_statistic string
+#' @param path string
+#' @param meff_method string - gao or liji
+#' @param gwas_snps vector - to remove GWAS SNPs if desired
+#' @param gao_pca_cutoff numeric - default is 0.995
+#' @param multiple_test_adj - boolean
+#' @param multiple_test_value - adj factor e.g. if two methods, make it 2
+#'
+#' @return
+#' @export
+#'
+#' @examples
+simplem_wrap_alt <- function(data, exposure, hrc_version, covariates, simplem_step1_statistic, path, meff_method, gwas_snps = NULL, gao_pca_cutoff = 0.995, multiple_method_adj = F, multiple_method_value = 1) {
+
+    # create list of bin SNP dosage data.frames
+    # FYI - 'glue' doesn't seem regex friendly
+    files_input <- mixedsort(list.files(path, pattern = paste0(paste0("expectation_based_snplist_", exposure, "_", hrc_version, "_", simplem_step1_statistic, "_bin"), "(?:.+)", "output.rds"), full.names = T))
+    files_list <- map(files_input, ~ readRDS(.x))
+
+    # ------------------------------------------- #
+    # function to filter GWAS SNPs if desired
+    remove_snps <- function(zz, gwas_snps_vector) {
+        zznames <- substr(names(zz), 1, nchar(names(zz)) - 4)
+        zz_index <- !zznames %in% gwas_snps_vector
+        zz_out <- zz[, zz_index]
+        return(zz_out)
+    }
+
+    # filter out GWAS SNPs if provided
+    # be careful - make sure gwas_snps is provided as chr:bp - so i can change it to Xchr.bp
+    if (!is.null(gwas_snps)) {
+        # GWAS SNPs to remove (vector of chr:bp)
+        #gwas_snps <- readRDS("../data/conditioning_snps_v20200930_filter_GWAS_SNPS_1000k.rds")
+        gwas_snps_v2 <- paste0("X", gsub(":", ".", gwas_snps))
+
+        # remove from bins
+        files_list <- map(files_list, ~ remove_snps(.x, gwas_snps_v2))
+
+        # remove from data
+        data2 <- data %>%
+            dplyr::filter(!SNP2 %in% gwas_snps)
+    } else {
+       data2 <- data
+    }
+
+    # output correlation matrix for each bin
+    # overall, no longer doing it by chromosome
+    snps_cor <- map(files_list, ~ cor(.x[,-1])) # '-1' to remove vcfid column
+
+    # ------------------------------------------ #
+    number_of_snps <- map_int(files_list, ~ ncol(.x[,-1]))
+
+    # calculate effective number of tests, output results in vector
+    if(meff_method == "gao") {
+        number_of_tests <- map_dbl(snps_cor, ~ poolr::meff(R = .x, method = meff_method, C = gao_pca_cutoff))
+    } else if(meff_method == "lea") {
+        number_of_tests <- map_dbl(snps_cor, ~ meff_lea(s = .x))
+    } else {
+        number_of_tests <- map_dbl(snps_cor, ~ poolr::meff(R = .x, method = meff_method))
+    }
+
+    # 3/17/2022 - new part
+    if(multiple_method_adj == T) {
+        number_of_tests = number_of_tests * multiple_method_value
+    }
+
+    # helper for writing filename
+    if(meff_method == "gao") {
+        meff_method_out = glue("gao_{gao_pca_cutoff}_alt")
+    } else {
+        meff_method_out = glue("{meff_method}_alt")
+    }
+
+    # helper for writing 'gwas' if you filtered gwas
+    if(!is.null(gwas_snps)) {
+        meff_method_out = glue(meff_method_out, "_excludeGWAS")
+    }
+
+
+    # call plotting function
+    output_filename <- create_twostep_plot_eh(
+            data = data2,
+            exposure = exposure,
+            covars = covariates,
+            binsToPlot = 7,
+            stats_step1 = simplem_step1_statistic,
+            sizeBin0 = 5,
+            alpha = 0.05,
+            path = "output",
+            meff_method = meff_method_out, # for the file name text
+            number_of_snps = number_of_snps,
+            number_of_tests = number_of_tests)
+
+    return(output_filename)
 }
 
 
